@@ -219,7 +219,7 @@ export function Score() {
   else if (autoDetect && confidence < 0.4) hint = { text: 'Weak edge. Drag the line if it looks wrong.', tone: 'warn' }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex-1 min-h-0 flex flex-col">
       <div ref={containerRef} className="relative flex-1 min-h-0 bg-black overflow-hidden">
         {!usingPhoto && (
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />

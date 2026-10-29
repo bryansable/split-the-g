@@ -32,7 +32,7 @@ export function Home() {
       : 'Sign in to compete with friends.'
 
   return (
-    <div className="h-full flex flex-col px-5 pt-3 pb-2">
+    <div className="flex-1 min-h-0 flex flex-col justify-between gap-3 px-5 pt-4 pb-3">
       {/* the one framed element: the pub sign */}
       <div className="relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
         <Bubbles count={16} />
@@ -46,22 +46,22 @@ export function Home() {
         </div>
       </div>
 
-      <LinkButton to="/score" size="lg" className="w-full mt-4">
+      <LinkButton to="/score" size="lg" className="w-full">
         <Pint size={22} />
         Score a pint
       </LinkButton>
 
       {/* figures: plain numbers, hairline dividers */}
-      <div className="mt-4 flex items-stretch divide-x divide-gold/20">
+      <div className="flex items-stretch divide-x divide-gold/20">
         <Figure size="md" label="Today" value={bestToday ?? '–'} />
         <Figure size="md" label="Best" value={stats.count ? stats.best : '–'} />
         <Figure size="md" label="Splits" value={stats.splits} />
       </div>
 
-      {/* rows stretch to fill whatever height is left */}
-      <div className="flex-1 flex flex-col justify-evenly min-h-0 mt-2">
+      {/* rows: hairline-separated, the column spreads the slack between blocks */}
+      <div className="flex flex-col">
         <Hr />
-        <Link to="/contest" className="flex items-center justify-between gap-4 py-2">
+        <Link to="/contest" className="flex items-center justify-between gap-4 py-3">
           <div>
             <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
             <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
@@ -71,7 +71,7 @@ export function Home() {
           </span>
         </Link>
         <Hr />
-        <Link to="/history" className="flex items-center justify-between gap-4 py-2">
+        <Link to="/history" className="flex items-center justify-between gap-4 py-3">
           <div>
             <div className="font-display text-gold tracking-wider uppercase text-sm">Previous attempts</div>
             {attempts.length > 0 ? (
@@ -93,7 +93,7 @@ export function Home() {
         <Hr />
       </div>
 
-      <p className="pt-2 text-[10px] text-cream/40 text-center leading-snug">
+      <p className="text-[10px] text-cream/40 text-center leading-snug">
         {showInstall && (
           <>
             <span className="text-gold/80">Add to home screen</span> for full screen: Share, then Add to Home Screen.{' '}
