@@ -28,9 +28,19 @@ npm run build   # type-check + production build into dist/
 
 1. Push to `main`. The workflow in `.github/workflows/deploy.yml` builds and deploys.
 2. In the repo: **Settings → Pages → Source: GitHub Actions** (one time).
-3. The app is served at `https://<your-user>.github.io/split-the-g/`. If your username is not `bryansable`, update `APP_URL` in `src/share/shareCard.ts`.
+3. The app is served at **https://pintsplit.com/**. The custom domain is set in the repo's Pages settings and in `public/CNAME`; `APP_URL` in `src/share/shareCard.ts` must match.
 
-For a different host or custom domain set `VITE_BASE=/` at build time.
+DNS for `pintsplit.com` lives in Cloudflare and points at GitHub Pages (records set to DNS only, not proxied, so GitHub can issue the certificate):
+
+| Type  | Name | Value |
+|-------|------|-------|
+| A     | @    | 185.199.108.153 |
+| A     | @    | 185.199.109.153 |
+| A     | @    | 185.199.110.153 |
+| A     | @    | 185.199.111.153 |
+| CNAME | www  | bryansable.github.io |
+
+To serve from a github.io project path instead, build with `VITE_BASE=/split-the-g/` and remove `public/CNAME`.
 
 ## Cloud features (friends + contests)
 
@@ -38,7 +48,7 @@ Without keys the app runs local-only: scoring and history work, Friends and Cont
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, paste and run `supabase/schema.sql`.
-3. In **Authentication → URL Configuration** set the Site URL to your Pages URL (e.g. `https://bryansable.github.io/split-the-g/`) and add it to Redirect URLs. Add `http://localhost:5173/split-the-g/` too for local dev.
+3. In **Authentication → URL Configuration** set the Site URL to your Pages URL (e.g. `https://pintsplit.com/`) and add it to Redirect URLs. Add `http://localhost:5173/` too for local dev.
 4. Copy **Project URL** and **anon public key** from Settings → API:
    - locally: `cp .env.example .env` and fill them in
    - on GitHub: repo **Settings → Secrets and variables → Actions**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then re-run the deploy workflow.

@@ -16,8 +16,8 @@ The app code for accounts, friend invites and the daily leaderboard is already b
 ## 3. Allow sign-in links back to the app
 
 1. Left sidebar: **Authentication**, then **URL Configuration**.
-2. Site URL: `https://bryansable.github.io/split-the-g/`
-3. Redirect URLs: add the same address, and `http://localhost:5173/split-the-g/` for local development.
+2. Site URL: `https://pintsplit.com/`
+3. Redirect URLs: add the same address, and `http://localhost:5173/` for local development.
 
 Sign-in is a passwordless magic link by email, which is on by default.
 

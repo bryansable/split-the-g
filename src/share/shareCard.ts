@@ -1,7 +1,7 @@
 import type { ScoreResult } from '../engine/score'
 import { TIER_COLOR } from '../engine/score'
 
-export const APP_URL = 'https://bryansable.github.io/split-the-g/'
+export const APP_URL = 'https://pintsplit.com/'
 
 /** Rounded-rect helper for older canvas implementations. */
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

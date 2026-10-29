@@ -4,10 +4,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Served from https://<user>.github.io/split-the-g/ on GitHub Pages.
-// Set VITE_BASE=/ for a custom domain or another host.
+// Served from https://pintsplit.com/ (GitHub Pages with a custom domain, see public/CNAME).
+// Set VITE_BASE=/split-the-g/ to serve from a github.io project path instead.
 export default defineConfig({
-  base: process.env.VITE_BASE ?? '/split-the-g/',
+  base: process.env.VITE_BASE ?? '/',
   plugins: [
     react(),
     tailwindcss(),
