@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Pint, Rule } from '../components/icons'
-import { Card, LinkButton, Notice, SectionLabel, Stat } from '../components/ui'
+import { LinkButton } from '../components/ui'
 import { computeStats, dayKey, useAttempts } from '../data/local'
 import { useAuth } from '../data/AuthContext'
 import { TIER_COLOR, tierFor } from '../engine/score'
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+}
+
+function Figure({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex-1 text-center">
+      <div className="font-display text-3xl text-cream leading-none">{value}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gold/80">{label}</div>
+    </div>
+  )
 }
 
 export function Home() {
@@ -22,11 +32,16 @@ export function Home() {
   const today = dayKey(new Date().toISOString())
   const todays = attempts.filter((a) => dayKey(a.createdAt) === today)
   const bestToday = todays.length ? Math.max(...todays.map((a) => a.score)) : null
+  const contestLine = !cloudEnabled
+    ? 'Local mode. Compete against yourself.'
+    : session
+      ? 'Best score of the day wins. Resets at midnight.'
+      : 'Sign in to compete with friends.'
 
   return (
-    <div className="p-4 space-y-4">
-      {/* pub sign */}
-      <div className="relative mx-auto max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-6 pt-6 pb-5 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
+    <div className="px-5 pb-8">
+      {/* the one framed element: the pub sign */}
+      <div className="mx-auto mt-5 max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-6 pt-5 pb-4 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
         <div className="text-[10px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
         <div className="font-display text-5xl leading-[1.05] text-cream mt-2 tracking-wide">
           Split
@@ -37,60 +52,66 @@ export function Home() {
         <p className="text-cream/70 text-sm tracking-wide">Pour. Sip. Land the line on the G.</p>
       </div>
 
-      <LinkButton to="/score" size="lg" className="w-full">
+      <LinkButton to="/score" size="lg" className="w-full mt-5">
         <Pint size={22} />
         Score a pint
       </LinkButton>
 
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Today" value={bestToday ?? '–'} />
-        <Stat label="Best" value={stats.count ? stats.best : '–'} />
-        <Stat label="Splits" value={stats.splits} />
+      {/* figures: plain numbers, hairline dividers */}
+      <div className="mt-7 flex items-stretch divide-x divide-gold/20">
+        <Figure label="Today" value={bestToday ?? '–'} />
+        <Figure label="Best" value={stats.count ? stats.best : '–'} />
+        <Figure label="Splits" value={stats.splits} />
       </div>
 
-      <Card>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
-            <div className="text-cream/65 text-xs mt-1">
-              {!cloudEnabled
-                ? 'Local mode: compete against yourself.'
-                : session
-                  ? 'Best score of the day wins. Resets at midnight.'
-                  : 'Sign in to compete with friends.'}
-            </div>
-          </div>
-          <LinkButton to="/contest" variant="secondary" size="sm">
-            Board
-          </LinkButton>
+      <hr className="mt-7 border-0 border-t border-gold/20" />
+
+      {/* contest: one row */}
+      <Link to="/contest" className="flex items-center justify-between gap-4 py-4">
+        <div>
+          <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
+          <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
         </div>
-      </Card>
+        <span className="font-display text-gold text-xl" aria-hidden>
+          ›
+        </span>
+      </Link>
 
       {attempts.length > 0 && (
-        <Card>
-          <SectionLabel>Last orders</SectionLabel>
-          <div className="flex gap-2">
-            {attempts.slice(0, 5).map((a) => (
-              <div key={a.id} className="flex-1 rounded-md bg-stout border border-gold/15 py-2 text-center font-display text-xl" style={{ color: TIER_COLOR[tierFor(a.score)] }}>
-                {a.score}
+        <>
+          <hr className="border-0 border-t border-gold/20" />
+          <Link to="/history" className="flex items-center justify-between gap-4 py-4">
+            <div>
+              <div className="font-display text-gold tracking-wider uppercase text-sm">Last orders</div>
+              <div className="mt-1 flex gap-3 font-display text-xl">
+                {attempts.slice(0, 5).map((a) => (
+                  <span key={a.id} style={{ color: TIER_COLOR[tierFor(a.score)] }}>
+                    {a.score}
+                  </span>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
+            </div>
+            <span className="font-display text-gold text-xl" aria-hidden>
+              ›
+            </span>
+          </Link>
+        </>
       )}
 
-      {showInstall && (
-        <Notice>
-          <b className="text-gold">Add to your home screen</b> for the full-screen pub: iPhone: Share, then Add to Home Screen. Android: menu, then Install
-          app.
-        </Notice>
-      )}
+      <hr className="border-0 border-t border-gold/20" />
 
-      <Card className="text-xs text-cream/60 leading-relaxed">
-        <b className="text-gold">House rules.</b> Point the camera at your glass and the app finds it. One sip, then capture: the line is read at the front
-        of the glass and compared with where the G sits on a classic pint. Any glass works, a ghost G shows the target. Independent fan project, not
-        affiliated with any brewery.
-      </Card>
+      <div className="py-4 text-xs leading-relaxed text-cream/55">
+        <span className="text-gold">House rules.</span> Point the camera at your glass and the app finds it. One sip, then capture: the line is read at
+        the front of the glass and compared with where the G sits on a classic pint. Any glass works, a ghost G shows the target.
+        {showInstall && (
+          <>
+            {' '}
+            <span className="text-gold">Add to your home screen</span> for the full-screen pub: iPhone, Share then Add to Home Screen; Android, menu
+            then Install app.
+          </>
+        )}
+      </div>
+      <p className="text-[10px] text-cream/35 text-center">Independent fan project. Not affiliated with any brewery.</p>
     </div>
   )
 }
