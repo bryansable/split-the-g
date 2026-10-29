@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, LinkButton, Notice, PageTitle } from '../components/ui'
+import { Figure, Hr, LinkButton, Notice, Page, PageTitle, SectionLabel } from '../components/ui'
 import { useAuth } from '../data/AuthContext'
 import { dayKey, useAttempts } from '../data/local'
 import { fetchLeaderboard, listFriendships } from '../data/supabase'
@@ -68,63 +68,77 @@ export function Contest() {
   const myBest = mine.length ? Math.max(...mine.map((a) => a.score)) : null
 
   return (
-    <div className="p-4 space-y-4">
+    <Page>
       <PageTitle sub={`Best score of the day wins. Resets in ${countdown}.`}>Today's G-off</PageTitle>
 
-      <Card className="flex items-center justify-between">
-        <div>
-          <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Your best today</div>
-          <div className="font-serif text-4xl" style={{ color: myBest === null ? '#f5e6c8' : TIER_COLOR[tierFor(myBest)] }}>
-            {myBest ?? '–'}
-          </div>
-          <div className="text-cream/50 text-xs">{mine.length} attempt{mine.length === 1 ? '' : 's'}</div>
+      <div className="mt-2 flex items-center">
+        <div className="flex-1 flex divide-x divide-gold/20">
+          <Figure
+            label="Your best today"
+            value={<span style={{ color: myBest === null ? undefined : TIER_COLOR[tierFor(myBest)] }}>{myBest ?? '–'}</span>}
+          />
+          <Figure label={mine.length === 1 ? 'attempt' : 'attempts'} value={mine.length} />
         </div>
-        <LinkButton to="/score">Score a pint</LinkButton>
-      </Card>
+        <LinkButton to="/score" size="sm" className="ml-4">
+          Score
+        </LinkButton>
+      </div>
+
+      <Hr className="mt-6" />
 
       {!cloudEnabled ? (
-        <Notice tone="warn">Friend leaderboards need the cloud backend. This build is local-only.</Notice>
+        <p className="py-4 text-sm text-cream/60">Friend leaderboards need the cloud backend. This build is local-only.</p>
       ) : !session ? (
-        <Card className="text-center space-y-3">
-          <p className="text-cream/70">Sign in to see where you rank against your friends.</p>
+        <div className="py-6 text-center">
+          <p className="text-cream/60 mb-4">Sign in to see where you rank against your friends.</p>
           <LinkButton to="/profile">Sign in</LinkButton>
-        </Card>
+        </div>
       ) : (
         <>
-          {error && <Notice tone="warn">{error}</Notice>}
-          <Card>
-            <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em] mb-2">Leaderboard</div>
-            {today === null ? (
-              <p className="text-cream/50 text-sm">Loading…</p>
-            ) : today.length === 0 ? (
-              <p className="text-cream/50 text-sm">
-                Nobody has scored yet today. {profile?.username ? '' : 'Pick a username in your profile. '}
-                <LinkButton to="/friends" variant="ghost" size="sm">
-                  Add friends
-                </LinkButton>
-              </p>
-            ) : (
-              <ol className="space-y-1">
-                {today.map((r, i) => (
-                  <li key={r.userId} className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${r.isMe ? 'bg-white/10' : ''}`}>
-                    <span className="w-6 text-cream/50 text-sm">{i === 0 ? '🏆' : i + 1}</span>
-                    <span className="flex-1 text-cream">@{r.username}{r.isMe ? ' (you)' : ''}</span>
-                    <span className="text-cream/40 text-xs">{r.attempts}×</span>
-                    <span className="font-serif text-2xl w-12 text-right" style={{ color: TIER_COLOR[tierFor(r.best)] }}>
-                      {r.best}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Card>
+          {error && (
+            <div className="pt-4">
+              <Notice tone="warn">{error}</Notice>
+            </div>
+          )}
+          <div className="pt-4">
+            <SectionLabel>Leaderboard</SectionLabel>
+          </div>
+          {today === null ? (
+            <p className="text-cream/50 text-sm py-2">Loading…</p>
+          ) : today.length === 0 ? (
+            <p className="text-cream/50 text-sm py-2">
+              Nobody has scored yet today. {profile?.username ? '' : 'Pick a username in your profile. '}
+              <LinkButton to="/friends" variant="ghost" size="sm">
+                Add friends
+              </LinkButton>
+            </p>
+          ) : (
+            <ol className="divide-y divide-gold/15">
+              {today.map((r, i) => (
+                <li key={r.userId} className={`flex items-center gap-4 py-2.5 ${r.isMe ? 'text-gold' : 'text-cream'}`}>
+                  <span className="w-6 font-display text-cream/50 text-sm">{i + 1}</span>
+                  <span className="flex-1">
+                    @{r.username}
+                    {r.isMe ? ' (you)' : ''}
+                  </span>
+                  <span className="text-cream/40 text-xs">{r.attempts}×</span>
+                  <span className="font-display text-2xl w-12 text-right leading-none" style={{ color: TIER_COLOR[tierFor(r.best)] }}>
+                    {r.best}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
           {yesterday && yesterday.length > 0 && (
-            <Card className="text-sm text-cream/70">
-              Yesterday's winner: <b className="text-cream">@{yesterday[0].username}</b> with {yesterday[0].best}.
-            </Card>
+            <>
+              <Hr className="mt-4" />
+              <p className="py-4 text-sm text-cream/60">
+                Yesterday's winner: <span className="text-gold">@{yesterday[0].username}</span> with {yesterday[0].best}.
+              </p>
+            </>
           )}
         </>
       )}
-    </div>
+    </Page>
   )
 }

@@ -61,13 +61,24 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
   )
 }
 
-export function Stat({ label, value }: { label: string; value: ReactNode }) {
+/** A plain figure with a small gold label; put several in a flex row with dividers. */
+export function Figure({ label, value, size = 'lg' }: { label: string; value: ReactNode; size?: 'md' | 'lg' }) {
   return (
-    <div className="rounded-md bg-stout border border-gold/20 px-3 py-2 text-center">
-      <div className="font-display text-2xl text-cream">{value}</div>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-gold/80">{label}</div>
+    <div className="flex-1 text-center">
+      <div className={`font-display text-cream leading-none ${size === 'lg' ? 'text-3xl' : 'text-2xl'}`}>{value}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gold/80">{label}</div>
     </div>
   )
+}
+
+/** Hairline separator between sections. */
+export function Hr({ className = '' }: { className?: string }) {
+  return <hr className={`border-0 border-t border-gold/20 ${className}`} />
+}
+
+/** A screen's scrolling body with consistent gutters. */
+export function Page({ children }: { children: ReactNode }) {
+  return <div className="px-5 pt-4 pb-8">{children}</div>
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {

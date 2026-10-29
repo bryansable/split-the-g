@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Button, Card, Input, LinkButton, Notice, PageTitle } from '../components/ui'
+import { Button, Hr, Input, LinkButton, Notice, Page, PageTitle, SectionLabel } from '../components/ui'
 import { useAuth } from '../data/AuthContext'
 import { acceptFriendRequest, listFriendships, removeFriendship, sendFriendRequest } from '../data/supabase'
 import type { Friendship } from '../data/types'
@@ -67,34 +67,34 @@ export function Friends() {
 
   if (!cloudEnabled) {
     return (
-      <div className="p-4 space-y-4">
+      <Page>
         <PageTitle>Friends</PageTitle>
-        <Notice tone="warn">Friends and contests need the cloud backend, which is not configured in this build. See the README to set up Supabase.</Notice>
-      </div>
+        <p className="text-sm text-cream/60">Friends and contests need the cloud backend, which is not configured in this build. See SUPABASE_SETUP.md in the repo.</p>
+      </Page>
     )
   }
 
   if (!session) {
     return (
-      <div className="p-4 space-y-4">
+      <Page>
         <PageTitle>Friends</PageTitle>
-        <Card className="text-center space-y-3">
-          <p className="text-cream/70">Sign in to add friends and join daily contests.</p>
+        <div className="py-6 text-center">
+          <p className="text-cream/60 mb-4">Sign in to add friends and join daily contests.</p>
           <LinkButton to="/profile">Sign in</LinkButton>
-        </Card>
-      </div>
+        </div>
+      </Page>
     )
   }
 
   if (!profile?.username) {
     return (
-      <div className="p-4 space-y-4">
+      <Page>
         <PageTitle>Friends</PageTitle>
-        <Card className="text-center space-y-3">
-          <p className="text-cream/70">Pick a username first so friends can find you.</p>
+        <div className="py-6 text-center">
+          <p className="text-cream/60 mb-4">Pick a username first so friends can find you.</p>
           <LinkButton to="/profile">Choose username</LinkButton>
-        </Card>
-      </div>
+        </div>
+      </Page>
     )
   }
 
@@ -117,63 +117,72 @@ export function Friends() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <Page>
       <PageTitle sub={`You are @${profile.username}`}>Friends</PageTitle>
 
-      <Card className="space-y-2">
-        <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Add a friend</div>
-        <div className="flex gap-2">
-          <Input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" />
-          <Button onClick={() => add()} disabled={busy || !username.trim()}>
-            Add
-          </Button>
-        </div>
-        <Button variant="secondary" size="sm" onClick={shareInvite}>
-          Share my invite link
+      <SectionLabel>Add a friend</SectionLabel>
+      <div className="flex gap-2">
+        <Input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" />
+        <Button onClick={() => add()} disabled={busy || !username.trim()}>
+          Add
         </Button>
-      </Card>
-
-      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-
-      {incoming.length > 0 && (
-        <Card className="space-y-2">
-          <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Requests</div>
-          {incoming.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-2">
-              <span className="text-cream">@{r.other?.username ?? 'someone'}</span>
-              <div className="flex gap-2">
-                <Button size="sm" disabled={busy} onClick={() => act(() => acceptFriendRequest(r.id))}>
-                  Accept
-                </Button>
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => removeFriendship(r.id))}>
-                  Decline
-                </Button>
-              </div>
-            </div>
-          ))}
-        </Card>
+      </div>
+      <button className="mt-3 text-sm text-gold underline-offset-4 hover:underline" onClick={shareInvite}>
+        Share my invite link
+      </button>
+      {msg && (
+        <div className="mt-3">
+          <Notice tone={msg.tone}>{msg.text}</Notice>
+        </div>
       )}
 
-      <Card className="space-y-2">
-        <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Friends ({friends.length})</div>
-        {friends.length === 0 && <p className="text-cream/50 text-sm">No friends yet. Share your invite link.</p>}
+      {incoming.length > 0 && (
+        <>
+          <Hr className="mt-6" />
+          <div className="pt-4">
+            <SectionLabel>Requests</SectionLabel>
+          </div>
+          <ul className="divide-y divide-gold/15">
+            {incoming.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-2 py-2.5">
+                <span className="text-cream">@{r.other?.username ?? 'someone'}</span>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={busy} onClick={() => act(() => acceptFriendRequest(r.id))}>
+                    Accept
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => removeFriendship(r.id))}>
+                    Decline
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <Hr className="mt-6" />
+      <div className="pt-4">
+        <SectionLabel>Friends ({friends.length})</SectionLabel>
+      </div>
+      {friends.length === 0 && outgoing.length === 0 && <p className="text-cream/50 text-sm">No friends yet. Share your invite link.</p>}
+      <ul className="divide-y divide-gold/15">
         {friends.map((r) => (
-          <div key={r.id} className="flex items-center justify-between">
+          <li key={r.id} className="flex items-center justify-between py-2.5">
             <span className="text-cream">@{r.other?.username ?? 'anon'}</span>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => removeFriendship(r.id))}>
               Remove
             </Button>
-          </div>
+          </li>
         ))}
         {outgoing.map((r) => (
-          <div key={r.id} className="flex items-center justify-between text-cream/50 text-sm">
+          <li key={r.id} className="flex items-center justify-between py-2.5 text-cream/50 text-sm">
             <span>@{r.other?.username ?? 'anon'} · pending</span>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => removeFriendship(r.id))}>
               Cancel
             </Button>
-          </div>
+          </li>
         ))}
-      </Card>
-    </div>
+      </ul>
+    </Page>
   )
 }

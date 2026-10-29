@@ -41,3 +41,48 @@ body {
 .pub-rule {
   border-image: linear-gradient(90deg, transparent, #c9a447 30%, #c9a447 70%, transparent) 1;
 }
+
+/* Rising stout bubbles (see components/Bubbles.tsx) */
+.bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.bubble {
+  position: absolute;
+  bottom: -16px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, rgba(243, 230, 201, 0.95), rgba(243, 230, 201, 0.35) 55%, rgba(243, 230, 201, 0) 72%);
+  box-shadow: 0 0 0 0.5px rgba(243, 230, 201, 0.25);
+  animation-name: bubble-rise, bubble-sway;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
+  animation-direction: normal, alternate;
+  will-change: transform;
+}
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) scale(0.6);
+  }
+  10% {
+    transform: translateY(-10%) scale(1);
+  }
+  100% {
+    transform: translateY(-120vh) scale(1.1);
+  }
+}
+@keyframes bubble-sway {
+  from {
+    margin-left: -4px;
+  }
+  to {
+    margin-left: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubbles {
+    display: none;
+  }
+}

@@ -1,22 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Bubbles } from '../components/Bubbles'
 import { Pint, Rule } from '../components/icons'
-import { LinkButton } from '../components/ui'
+import { Figure, Hr, LinkButton } from '../components/ui'
 import { computeStats, dayKey, useAttempts } from '../data/local'
 import { useAuth } from '../data/AuthContext'
 import { TIER_COLOR, tierFor } from '../engine/score'
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
-}
-
-function Figure({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex-1 text-center">
-      <div className="font-display text-3xl text-cream leading-none">{value}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gold/80">{label}</div>
-    </div>
-  )
 }
 
 export function Home() {
@@ -41,15 +33,18 @@ export function Home() {
   return (
     <div className="px-5 pb-8">
       {/* the one framed element: the pub sign */}
-      <div className="mx-auto mt-5 max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-6 pt-5 pb-4 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
-        <div className="text-[10px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
-        <div className="font-display text-5xl leading-[1.05] text-cream mt-2 tracking-wide">
-          Split
-          <br />
-          The <span className="inline-block border-[3px] border-gold text-gold rounded-full px-3 leading-none py-1">G</span>
+      <div className="relative overflow-hidden mx-auto mt-5 max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-6 pt-5 pb-4 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
+        <Bubbles />
+        <div className="relative z-10">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
+          <div className="font-display text-5xl leading-[1.05] text-cream mt-2 tracking-wide">
+            Split
+            <br />
+            The <span className="inline-block border-[3px] border-gold text-gold rounded-full px-3 leading-none py-1">G</span>
+          </div>
+          <Rule className="my-3" />
+          <p className="text-cream/70 text-sm tracking-wide">Pour. Sip. Land the line on the G.</p>
         </div>
-        <Rule className="my-3" />
-        <p className="text-cream/70 text-sm tracking-wide">Pour. Sip. Land the line on the G.</p>
       </div>
 
       <LinkButton to="/score" size="lg" className="w-full mt-5">
@@ -64,7 +59,7 @@ export function Home() {
         <Figure label="Splits" value={stats.splits} />
       </div>
 
-      <hr className="mt-7 border-0 border-t border-gold/20" />
+      <Hr className="mt-7" />
 
       {/* contest: one row */}
       <Link to="/contest" className="flex items-center justify-between gap-4 py-4">
@@ -79,7 +74,7 @@ export function Home() {
 
       {attempts.length > 0 && (
         <>
-          <hr className="border-0 border-t border-gold/20" />
+          <Hr />
           <Link to="/history" className="flex items-center justify-between gap-4 py-4">
             <div>
               <div className="font-display text-gold tracking-wider uppercase text-sm">Last orders</div>
@@ -98,7 +93,7 @@ export function Home() {
         </>
       )}
 
-      <hr className="border-0 border-t border-gold/20" />
+      <Hr />
 
       <div className="py-4 text-xs leading-relaxed text-cream/55">
         <span className="text-gold">House rules.</span> Point the camera at your glass and the app finds it. One sip, then capture: the line is read at

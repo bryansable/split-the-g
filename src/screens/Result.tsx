@@ -76,7 +76,7 @@ export function Result() {
   }
 
   return (
-    <div className="p-4 pb-8 space-y-4">
+    <div className="px-5 pt-6 pb-8 space-y-5">
       <div className="text-center">
         <div className="font-serif leading-none" style={{ color, fontSize: 96 }}>
           {result.score}
