@@ -32,7 +32,7 @@ export function History() {
       ) : (
         <>
           <div className="pt-4">
-            <SectionLabel>All orders</SectionLabel>
+            <SectionLabel>All attempts</SectionLabel>
           </div>
           <ul className="divide-y divide-gold/15">
             {attempts.map((a) => {

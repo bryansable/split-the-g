@@ -77,7 +77,7 @@ export function Home() {
           <Hr />
           <Link to="/history" className="flex items-center justify-between gap-4 py-4">
             <div>
-              <div className="font-display text-gold tracking-wider uppercase text-sm">Last orders</div>
+              <div className="font-display text-gold tracking-wider uppercase text-sm">Previous attempts</div>
               <div className="mt-1 flex gap-3 font-display text-xl">
                 {attempts.slice(0, 5).map((a) => (
                   <span key={a.id} style={{ color: TIER_COLOR[tierFor(a.score)] }}>
