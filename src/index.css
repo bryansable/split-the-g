@@ -64,6 +64,29 @@ body {
   border-image: linear-gradient(90deg, transparent, var(--color-gold) 30%, var(--color-gold) 70%, transparent) 1;
 }
 
+/*
+ * Home sign: the pub photo behind the lettering, darkened so the type reads,
+ * with the pint sitting low and centre. The sparkling edition cools it to blue.
+ */
+.hero-sign::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(180deg, rgba(13, 9, 6, 0.55) 0%, rgba(13, 9, 6, 0.35) 55%, rgba(13, 9, 6, 0.75) 100%),
+    image-set(url('/hero-small.jpg') 1x, url('/hero.jpg') 2x);
+  background-size: cover;
+  background-position: center 62%;
+}
+/* sparkling: cool the photo itself, leaving border and type alone */
+:root[data-theme='sparkling'] .hero-sign::before {
+  background-image:
+    linear-gradient(180deg, rgba(6, 16, 28, 0.6) 0%, rgba(6, 16, 28, 0.45) 55%, rgba(6, 16, 28, 0.8) 100%),
+    image-set(url('/hero-small.jpg') 1x, url('/hero.jpg') 2x);
+  filter: saturate(0.55) hue-rotate(185deg);
+}
+
 /* the framed sign: a double gold line standing off a wood mat */
 .sign-frame {
   box-shadow:

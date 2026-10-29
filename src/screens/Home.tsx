@@ -34,7 +34,7 @@ export function Home() {
   return (
     <div className="flex-1 min-h-0 flex flex-col justify-between gap-3 px-5 pt-4 pb-3">
       {/* the one framed element: the pub sign */}
-      <div className="sign-frame relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center">
+      <div className="sign-frame hero-sign relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center">
         <Bubbles count={mode === 'sparkling' ? 28 : 16} />
         <div className="relative z-10">
           <div className="text-[9px] uppercase tracking-[0.35em] text-gold/80">{mode === 'sparkling' ? copy.edition : 'Est. for the first sip'}</div>
