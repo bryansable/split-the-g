@@ -199,12 +199,23 @@ export function Score() {
     ctx.moveTo(cx - halfW * 1.2, lineY)
     ctx.lineTo(cx + halfW * 1.2, lineY)
     ctx.stroke()
+    // A tighter crop around the glass, in snapshot pixels, for the "glass only" share.
+    const px = 2
+    const glassCrop = walls
+      ? {
+          x: Math.max(0, walls.left - size.w * 0.14) * px,
+          y: Math.max(0, framePx.rimY - size.h * 0.07) * px,
+          w: Math.min(size.w, walls.right + size.w * 0.14) * px - Math.max(0, walls.left - size.w * 0.14) * px,
+          h: Math.min(size.h, framePx.baseY + size.h * 0.05) * px - Math.max(0, framePx.rimY - size.h * 0.07) * px,
+        }
+      : undefined
     const pending: PendingResult = {
       id: newId(),
       createdAt: new Date().toISOString(),
       result,
       glassType,
       snapshotUrl: canvas.toDataURL('image/jpeg', 0.85),
+      glassCrop,
     }
     navigate('/result', { state: pending })
   }
