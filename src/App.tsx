@@ -1,5 +1,7 @@
 import { HashRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Chalkboard, Cheers, Person, Pint, PubSign, Shamrock, Trophy } from './components/icons'
+import { Intro } from './components/Intro'
+import { Challenge } from './screens/Challenge'
 import { AuthProvider, useAuth } from './data/AuthContext'
 import { Contest } from './screens/Contest'
 import { Friends } from './screens/Friends'
@@ -26,6 +28,7 @@ function Shell() {
 
   return (
     <div className="h-dvh flex flex-col bg-ink text-cream">
+      <Intro />
       {!fullBleed && (
         <header className="relative flex items-center justify-between px-4 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-2.5 bg-wood border-b-2 pub-rule">
           <NavLink to="/" className="flex items-center gap-2 font-display text-gold tracking-[0.2em] uppercase text-sm">
@@ -47,6 +50,7 @@ function Shell() {
           <Route path="/friends" element={cloudEnabled ? <Friends /> : <Navigate to="/" replace />} />
           <Route path="/contest" element={cloudEnabled ? <Contest /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/challenge" element={<Challenge />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

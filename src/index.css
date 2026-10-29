@@ -81,8 +81,31 @@ body {
     margin-left: 4px;
   }
 }
+/* Page-load curtain (see components/Intro.tsx): bottom edge lifts away */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #0d0906;
+  overflow: hidden;
+  pointer-events: none;
+  animation: intro-lift 1.7s cubic-bezier(0.7, 0, 0.3, 1) 0.35s forwards;
+}
+.intro .bubbles {
+  z-index: 1;
+}
+@keyframes intro-lift {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .bubbles {
+  .bubbles,
+  .intro {
     display: none;
   }
 }

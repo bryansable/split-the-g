@@ -7,6 +7,8 @@ import { useAuth } from '../data/AuthContext'
 import type { GlassType } from '../data/types'
 import { TIER_COLOR, type ScoreResult } from '../engine/score'
 import { renderShareCard, shareResult, type ShareOutcome } from '../share/shareCard'
+import { challengeText, clearChallenge, loadChallenge, smsHref } from '../share/challenge'
+import { Cheers } from '../components/icons'
 
 export interface PendingResult {
   id: string
@@ -22,10 +24,15 @@ export function Result() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const pending = state as PendingResult | null
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
   const cardBlob = useRef<Blob | null>(null)
+  // A challenge this attempt was answering, if the user arrived via a texted link.
+  const [challenge] = useState(() => loadChallenge())
+  useEffect(() => {
+    if (challenge) clearChallenge()
+  }, [challenge])
 
   useEffect(() => {
     if (!pending) {
@@ -52,6 +59,14 @@ export function Result() {
   if (!pending) return null
   const { result } = pending
   const color = TIER_COLOR[result.tier]
+  const textHref = smsHref(challengeText(result, profile?.username ?? undefined))
+  const verdict =
+    challenge &&
+    (result.score > challenge.score
+      ? `You beat ${challenge.from ? `@${challenge.from}` : 'their'} ${challenge.score}. Send it back.`
+      : result.score === challenge.score
+        ? `Dead heat with ${challenge.from ? `@${challenge.from}` : 'them'} at ${challenge.score}.`
+        : `${challenge.from ? `@${challenge.from}` : 'They'} still lead${challenge.from ? 's' : ''} with ${challenge.score}. Another pint?`)
 
   async function share() {
     setSharing(true)
@@ -89,9 +104,15 @@ export function Result() {
         <img src={pending.snapshotUrl} alt="Your attempt" className="w-full rounded-lg border-2 border-gold/50" />
       )}
 
+      {verdict && <p className="text-center text-sm text-gold">{verdict}</p>}
+
+      <a href={textHref} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gold text-ink border border-gold font-display uppercase tracking-wide text-base px-5 py-3 active:scale-[0.98]">
+        <Cheers size={22} />
+        Text a friend to beat it
+      </a>
       <div className="flex gap-2">
-        <Button className="flex-1" onClick={share} disabled={sharing}>
-          {sharing ? 'Preparing…' : 'Share'}
+        <Button variant="secondary" className="flex-1" onClick={share} disabled={sharing}>
+          {sharing ? 'Preparing…' : 'Share card'}
         </Button>
         <LinkButton to="/score" variant="secondary" className="flex-1">
           Try again
