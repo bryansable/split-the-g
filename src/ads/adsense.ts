@@ -26,6 +26,12 @@ let loading: Promise<void> | null = null
 export function loadAdsense(): Promise<void> {
   if (!adsEnabled) return Promise.resolve()
   if (loading) return loading
+  // The production build already puts the loader in <head> (vite.config.ts).
+  const existing = document.querySelector<HTMLScriptElement>('script[src*="adsbygoogle.js"]')
+  if (existing) {
+    loading = Promise.resolve()
+    return loading
+  }
   loading = new Promise((resolve) => {
     const s = document.createElement('script')
     s.async = true

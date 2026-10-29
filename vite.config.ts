@@ -20,6 +20,33 @@ function adsTxt(client: string | undefined): Plugin {
   }
 }
 
+/**
+ * Google verifies site ownership by reading the raw HTML, so the AdSense
+ * account meta tag and loader script go into <head> at build time rather than
+ * being injected by the app. Only when a client ID is configured.
+ */
+function adsenseHead(client: string | undefined): Plugin {
+  const id = client?.trim()
+  return {
+    name: 'adsense-head',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (!id) return html
+      return {
+        html,
+        tags: [
+          { tag: 'meta', attrs: { name: 'google-adsense-account', content: id }, injectTo: 'head' },
+          {
+            tag: 'script',
+            attrs: { async: true, src: `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${id}`, crossorigin: 'anonymous' },
+            injectTo: 'head',
+          },
+        ],
+      }
+    },
+  }
+}
+
 // Served from https://pintsplit.com/ (GitHub Pages with a custom domain, see public/CNAME).
 // Set VITE_BASE=/split-the-g/ to serve from a github.io project path instead.
 export default defineConfig(({ mode }) => {
@@ -30,6 +57,7 @@ export default defineConfig(({ mode }) => {
     react(),
     tailwindcss(),
     adsTxt(env.VITE_ADSENSE_CLIENT),
+    adsenseHead(env.VITE_ADSENSE_CLIENT),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
