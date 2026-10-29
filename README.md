@@ -44,14 +44,14 @@ To serve from a github.io project path instead, build with `VITE_BASE=/split-the
 
 ## Cloud features (friends + contests)
 
-Without keys the app runs local-only: scoring and history work, Friends and Contest explain that the cloud is off.
+Accounts, friends and daily contests run on a Supabase project; `SUPABASE_SETUP.md` records how it is configured. Without the two values in `.env.production` the build hides the Friends and Contest tabs and the sign-in link, and scoring and history work on their own.
+
+To rebuild from scratch:
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, paste and run `supabase/schema.sql`.
-3. In **Authentication → URL Configuration** set the Site URL to your Pages URL (e.g. `https://pintsplit.com/`) and add it to Redirect URLs. Add `http://localhost:5173/` too for local dev.
-4. Copy **Project URL** and **anon public key** from Settings → API:
-   - locally: `cp .env.example .env` and fill them in
-   - on GitHub: repo **Settings → Secrets and variables → Actions**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then re-run the deploy workflow.
+3. In **Authentication → URL Configuration** set the Site URL to `https://pintsplit.com/` and add `https://pintsplit.com/**` and `http://localhost:5173/**` as redirect URLs.
+4. Copy the **Project URL** and the **publishable key** from Settings → API Keys into `.env.production` (committed; the key is public by design) and, for local work, into `.env`.
 
 Sign-in is a passwordless magic link by email. Attempts recorded while signed out sync up on first sign-in.
 

@@ -32,10 +32,13 @@ create table if not exists public.friendships (
   created_at timestamptz not null default now(),
   constraint friendships_requester_id_fkey foreign key (requester_id) references public.profiles (id) on delete cascade,
   constraint friendships_addressee_id_fkey foreign key (addressee_id) references public.profiles (id) on delete cascade,
-  constraint friendships_not_self check (requester_id <> addressee_id),
-  -- one row per pair regardless of direction
-  constraint friendships_unique_pair unique (least(requester_id, addressee_id), greatest(requester_id, addressee_id))
+  constraint friendships_not_self check (requester_id <> addressee_id)
 );
+
+-- one row per pair regardless of direction (expression index; a table
+-- constraint cannot hold expressions)
+create unique index if not exists friendships_unique_pair
+  on public.friendships (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
 
 create or replace function public.are_friends(a uuid, b uuid)
 returns boolean language sql stable security definer set search_path = public as $$
