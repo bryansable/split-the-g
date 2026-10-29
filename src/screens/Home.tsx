@@ -11,6 +11,7 @@ function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
 }
 
+/** Everything fits one phone screen: the layout stretches between the sign and the footer line. */
 export function Home() {
   const attempts = useAttempts()
   const stats = computeStats(attempts)
@@ -31,82 +32,75 @@ export function Home() {
       : 'Sign in to compete with friends.'
 
   return (
-    <div className="px-5 pb-8">
+    <div className="h-full flex flex-col px-5 pt-3 pb-2">
       {/* the one framed element: the pub sign */}
-      <div className="relative overflow-hidden mx-auto mt-5 max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-6 pt-5 pb-4 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
-        <Bubbles />
+      <div className="relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
+        <Bubbles count={16} />
         <div className="relative z-10">
-          <div className="text-[10px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
-          <div className="font-display text-5xl leading-[1.05] text-cream mt-2 tracking-wide">
-            Split
-            <br />
-            The <span className="inline-block border-[3px] border-gold text-gold rounded-full px-3 leading-none py-1">G</span>
+          <div className="text-[9px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
+          <div className="font-display text-4xl leading-[1.05] text-cream mt-1.5 tracking-wide">
+            Split The <span className="inline-block border-[3px] border-gold text-gold rounded-full px-2.5 leading-none py-0.5">G</span>
           </div>
-          <Rule className="my-3" />
-          <p className="text-cream/70 text-sm tracking-wide">Pour. Sip. Land the line on the G.</p>
+          <Rule className="my-2" />
+          <p className="text-cream/70 text-xs tracking-wide">Point at your glass. One sip. Land the line on the G.</p>
         </div>
       </div>
 
-      <LinkButton to="/score" size="lg" className="w-full mt-5">
+      <LinkButton to="/score" size="lg" className="w-full mt-4">
         <Pint size={22} />
         Score a pint
       </LinkButton>
 
       {/* figures: plain numbers, hairline dividers */}
-      <div className="mt-7 flex items-stretch divide-x divide-gold/20">
-        <Figure label="Today" value={bestToday ?? '–'} />
-        <Figure label="Best" value={stats.count ? stats.best : '–'} />
-        <Figure label="Splits" value={stats.splits} />
+      <div className="mt-4 flex items-stretch divide-x divide-gold/20">
+        <Figure size="md" label="Today" value={bestToday ?? '–'} />
+        <Figure size="md" label="Best" value={stats.count ? stats.best : '–'} />
+        <Figure size="md" label="Splits" value={stats.splits} />
       </div>
 
-      <Hr className="mt-7" />
-
-      {/* contest: one row */}
-      <Link to="/contest" className="flex items-center justify-between gap-4 py-4">
-        <div>
-          <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
-          <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
-        </div>
-        <span className="font-display text-gold text-xl" aria-hidden>
-          ›
-        </span>
-      </Link>
-
-      {attempts.length > 0 && (
-        <>
-          <Hr />
-          <Link to="/history" className="flex items-center justify-between gap-4 py-4">
-            <div>
-              <div className="font-display text-gold tracking-wider uppercase text-sm">Previous attempts</div>
-              <div className="mt-1 flex gap-3 font-display text-xl">
+      {/* rows stretch to fill whatever height is left */}
+      <div className="flex-1 flex flex-col justify-evenly min-h-0 mt-2">
+        <Hr />
+        <Link to="/contest" className="flex items-center justify-between gap-4 py-2">
+          <div>
+            <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
+            <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
+          </div>
+          <span className="font-display text-gold text-xl" aria-hidden>
+            ›
+          </span>
+        </Link>
+        <Hr />
+        <Link to="/history" className="flex items-center justify-between gap-4 py-2">
+          <div>
+            <div className="font-display text-gold tracking-wider uppercase text-sm">Previous attempts</div>
+            {attempts.length > 0 ? (
+              <div className="mt-1 flex gap-3 font-display text-xl leading-none">
                 {attempts.slice(0, 5).map((a) => (
                   <span key={a.id} style={{ color: TIER_COLOR[tierFor(a.score)] }}>
                     {a.score}
                   </span>
                 ))}
               </div>
-            </div>
-            <span className="font-display text-gold text-xl" aria-hidden>
-              ›
-            </span>
-          </Link>
-        </>
-      )}
+            ) : (
+              <div className="text-cream/60 text-xs mt-0.5">None yet. Pour one.</div>
+            )}
+          </div>
+          <span className="font-display text-gold text-xl" aria-hidden>
+            ›
+          </span>
+        </Link>
+        <Hr />
+      </div>
 
-      <Hr />
-
-      <div className="py-4 text-xs leading-relaxed text-cream/55">
-        <span className="text-gold">House rules.</span> Point the camera at your glass and the app finds it. One sip, then capture: the line is read at
-        the front of the glass and compared with where the G sits on a classic pint. Any glass works, a ghost G shows the target.
+      <p className="pt-2 text-[10px] text-cream/40 text-center leading-snug">
         {showInstall && (
           <>
-            {' '}
-            <span className="text-gold">Add to your home screen</span> for the full-screen pub: iPhone, Share then Add to Home Screen; Android, menu
-            then Install app.
+            <span className="text-gold/80">Add to home screen</span> for full screen: Share, then Add to Home Screen.{' '}
           </>
         )}
-      </div>
-      <p className="text-[10px] text-cream/35 text-center">Independent fan project. Not affiliated with any brewery.</p>
+        Independent fan project. Not affiliated with any brewery.
+      </p>
     </div>
   )
 }
