@@ -1,4 +1,4 @@
-import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Chalkboard, Cheers, Person, Pint, PubSign, Shamrock, Trophy } from './components/icons'
 import { AuthProvider, useAuth } from './data/AuthContext'
 import { Contest } from './screens/Contest'
@@ -9,18 +9,20 @@ import { Profile } from './screens/Profile'
 import { Result } from './screens/Result'
 import { Score } from './screens/Score'
 
-const tabs = [
-  { to: '/', label: 'Home', Icon: PubSign },
-  { to: '/score', label: 'Score', Icon: Pint },
-  { to: '/history', label: 'History', Icon: Chalkboard },
-  { to: '/friends', label: 'Friends', Icon: Cheers },
-  { to: '/contest', label: 'Contest', Icon: Trophy },
+const allTabs = [
+  { to: '/', label: 'Home', Icon: PubSign, cloud: false },
+  { to: '/score', label: 'Score', Icon: Pint, cloud: false },
+  { to: '/history', label: 'History', Icon: Chalkboard, cloud: false },
+  { to: '/friends', label: 'Friends', Icon: Cheers, cloud: true },
+  { to: '/contest', label: 'Contest', Icon: Trophy, cloud: true },
 ]
 
 function Shell() {
   const { pathname } = useLocation()
-  const { session, profile } = useAuth()
+  const { session, profile, cloudEnabled } = useAuth()
   const fullBleed = pathname === '/score'
+  // Social features appear only once the backend is live.
+  const tabs = allTabs.filter((t) => cloudEnabled || !t.cloud)
 
   return (
     <div className="h-dvh flex flex-col bg-ink text-cream">
@@ -32,7 +34,7 @@ function Shell() {
           </NavLink>
           <NavLink to="/profile" className="flex items-center gap-1.5 text-xs text-cream/75 hover:text-gold">
             <Person size={18} />
-            {session ? `@${profile?.username ?? 'set name'}` : 'Sign in'}
+            {cloudEnabled ? (session ? `@${profile?.username ?? 'set name'}` : 'Sign in') : 'About'}
           </NavLink>
         </header>
       )}
@@ -42,8 +44,8 @@ function Shell() {
           <Route path="/score" element={<Score />} />
           <Route path="/result" element={<Result />} />
           <Route path="/history" element={<History />} />
-          <Route path="/friends" element={<Friends />} />
-          <Route path="/contest" element={<Contest />} />
+          <Route path="/friends" element={cloudEnabled ? <Friends /> : <Navigate to="/" replace />} />
+          <Route path="/contest" element={cloudEnabled ? <Contest /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Home />} />
         </Routes>

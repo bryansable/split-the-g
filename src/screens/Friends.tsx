@@ -65,16 +65,7 @@ export function Friends() {
     }
   }
 
-  if (!cloudEnabled) {
-    return (
-      <Page>
-        <PageTitle>Friends</PageTitle>
-        <p className="text-sm text-cream/60">Friends and contests need the cloud backend, which is not configured in this build. See SUPABASE_SETUP.md in the repo.</p>
-      </Page>
-    )
-  }
-
-  if (!session) {
+  if (!cloudEnabled || !session) {
     return (
       <Page>
         <PageTitle>Friends</PageTitle>

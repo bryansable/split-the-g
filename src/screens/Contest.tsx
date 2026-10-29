@@ -86,9 +86,7 @@ export function Contest() {
 
       <Hr className="mt-6" />
 
-      {!cloudEnabled ? (
-        <p className="py-4 text-sm text-cream/60">Friend leaderboards need the cloud backend. This build is local-only.</p>
-      ) : !session ? (
+      {!cloudEnabled ? null : !session ? (
         <div className="py-6 text-center">
           <p className="text-cream/60 mb-4">Sign in to see where you rank against your friends.</p>
           <LinkButton to="/profile">Sign in</LinkButton>

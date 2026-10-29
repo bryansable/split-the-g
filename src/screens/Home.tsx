@@ -25,11 +25,7 @@ export function Home() {
   const today = dayKey(new Date().toISOString())
   const todays = attempts.filter((a) => dayKey(a.createdAt) === today)
   const bestToday = todays.length ? Math.max(...todays.map((a) => a.score)) : null
-  const contestLine = !cloudEnabled
-    ? 'Local mode. Compete against yourself.'
-    : session
-      ? 'Best score of the day wins. Resets at midnight.'
-      : 'Sign in to compete with friends.'
+  const contestLine = session ? 'Best score of the day wins. Resets at midnight.' : 'Sign in to compete with friends.'
 
   return (
     <div className="flex-1 min-h-0 flex flex-col justify-between gap-3 px-5 pt-4 pb-3">
@@ -61,16 +57,20 @@ export function Home() {
       {/* rows: hairline-separated, the column spreads the slack between blocks */}
       <div className="flex flex-col">
         <Hr />
-        <Link to="/contest" className="flex items-center justify-between gap-4 py-3">
-          <div>
-            <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
-            <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
-          </div>
-          <span className="font-display text-gold text-xl" aria-hidden>
-            ›
-          </span>
-        </Link>
-        <Hr />
+        {cloudEnabled && (
+          <>
+            <Link to="/contest" className="flex items-center justify-between gap-4 py-3">
+              <div>
+                <div className="font-display text-gold tracking-wider uppercase text-sm">Today's G-off</div>
+                <div className="text-cream/60 text-xs mt-0.5">{contestLine}</div>
+              </div>
+              <span className="font-display text-gold text-xl" aria-hidden>
+                ›
+              </span>
+            </Link>
+            <Hr />
+          </>
+        )}
         <Link to="/history" className="flex items-center justify-between gap-4 py-3">
           <div>
             <div className="font-display text-gold tracking-wider uppercase text-sm">Previous attempts</div>

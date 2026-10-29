@@ -28,12 +28,11 @@ export function Profile() {
 
   return (
     <Page>
-      <PageTitle>Profile</PageTitle>
+      <PageTitle>{cloudEnabled ? 'Profile' : 'About'}</PageTitle>
 
       {!cloudEnabled ? (
         <p className="text-sm text-cream/60">
-          This build has no cloud backend, so there is nothing to sign in to. Your {attempts.length} attempt{attempts.length === 1 ? '' : 's'} stay on
-          this device.
+          {attempts.length} attempt{attempts.length === 1 ? '' : 's'} scored on this phone.
         </p>
       ) : loading ? (
         <p className="text-cream/50">Loading…</p>
