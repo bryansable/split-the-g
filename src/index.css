@@ -1,17 +1,30 @@
 @import 'tailwindcss';
 
+/*
+ * Irish pub palette: stout black, dark wood, a cream head, brass and gold,
+ * with a bottle-green and a claret accent. Display type is a classical serif
+ * in the spirit of a pub sign; body copy stays a system face for legibility.
+ */
 @theme {
-  --color-ink: #0a0a0a;
-  --color-cream: #f5e6c8;
-  --font-serif: Georgia, 'Times New Roman', serif;
+  --color-ink: #0d0906;
+  --color-stout: #140d09;
+  --color-wood: #241710;
+  --color-wood-light: #3a261a;
+  --color-cream: #f3e6c9;
+  --color-gold: #c9a447;
+  --color-brass: #a7843a;
+  --color-emerald: #1f7a4d;
+  --color-claret: #8c2b2b;
+  --font-display: 'Cinzel', Georgia, 'Times New Roman', serif;
+  --font-serif: 'Cinzel', Georgia, 'Times New Roman', serif;
 }
 
 html,
 body,
 #root {
   height: 100%;
-  background: #0a0a0a;
-  color: #f5e6c8;
+  background: #0d0906;
+  color: #f3e6c9;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
@@ -19,4 +32,12 @@ body,
 body {
   margin: 0;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* faint wood grain */
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, rgba(201, 164, 71, 0.08), transparent 60%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 7px);
+}
+
+.pub-rule {
+  border-image: linear-gradient(90deg, transparent, #c9a447 30%, #c9a447 70%, transparent) 1;
 }

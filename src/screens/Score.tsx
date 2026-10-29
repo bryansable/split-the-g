@@ -7,6 +7,7 @@ import { DEFAULT_FRAME, G_BAND, TARGET_FRACTION, clamp, fractionToY, lineFractio
 import { TIER_COLOR, scoreAttempt } from '../engine/score'
 import { newId } from '../data/local'
 import type { GlassType } from '../data/types'
+import { Photo, Pint } from '../components/icons'
 import { Button, Notice } from '../components/ui'
 import type { PendingResult } from './Result'
 
@@ -248,15 +249,15 @@ export function Score() {
 
         {/* top bar */}
         <div className="absolute top-0 inset-x-0 p-3 flex items-center justify-between gap-2 pointer-events-none">
-          <div className="pointer-events-auto flex rounded-full bg-black/60 backdrop-blur p-1 text-xs">
+          <div className="pointer-events-auto flex rounded-full bg-black/60 backdrop-blur p-1 text-xs border border-gold/30">
             <button
-              className={`px-3 py-1.5 rounded-full ${glassType === 'plain' ? 'bg-cream text-ink font-semibold' : 'text-cream/80'}`}
+              className={`px-3 py-1.5 rounded-full ${glassType === 'plain' ? 'bg-gold text-ink font-semibold' : 'text-cream/80'}`}
               onClick={() => setGlassType('plain')}
             >
               Any glass
             </button>
             <button
-              className={`px-3 py-1.5 rounded-full ${glassType === 'official' ? 'bg-cream text-ink font-semibold' : 'text-cream/80'}`}
+              className={`px-3 py-1.5 rounded-full ${glassType === 'official' ? 'bg-gold text-ink font-semibold' : 'text-cream/80'}`}
               onClick={() => setGlassType('official')}
             >
               Official glass
@@ -284,10 +285,12 @@ export function Score() {
       </div>
 
       {/* controls */}
-      <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-ink border-t border-white/10 flex items-center justify-between gap-3">
+      <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-wood border-t-2 pub-rule flex items-center justify-between gap-3">
         <div className="flex flex-col items-center w-24 gap-1">
           <label className="flex flex-col items-center text-[11px] text-cream/70 cursor-pointer">
-            <span className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-lg">🖼️</span>
+            <span className="w-11 h-11 rounded-full bg-wood border border-gold/40 text-gold flex items-center justify-center">
+              <Photo size={20} />
+            </span>
             Pick photo
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickPhoto} />
           </label>
@@ -302,9 +305,11 @@ export function Score() {
           onClick={capture}
           disabled={!ready || !result}
           aria-label="Capture"
-          className="w-20 h-20 rounded-full bg-cream disabled:opacity-30 flex items-center justify-center shadow-lg active:scale-95 transition"
+          className="w-20 h-20 rounded-full bg-gold disabled:opacity-30 flex items-center justify-center shadow-[0_0_0_3px_#241710,0_0_0_4px_rgba(201,164,71,.5)] active:scale-95 transition"
         >
-          <span className="w-16 h-16 rounded-full border-4 border-ink" />
+          <span className="w-16 h-16 rounded-full border-4 border-ink flex items-center justify-center text-ink">
+            <Pint size={28} />
+          </span>
         </button>
 
         <div className="flex flex-col items-center w-24 gap-1">

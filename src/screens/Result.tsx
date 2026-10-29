@@ -86,7 +86,7 @@ export function Result() {
       </div>
 
       {pending.snapshotUrl && (
-        <img src={pending.snapshotUrl} alt="Your attempt" className="w-full rounded-2xl border border-white/10" />
+        <img src={pending.snapshotUrl} alt="Your attempt" className="w-full rounded-lg border-2 border-gold/50" />
       )}
 
       <div className="flex gap-2">

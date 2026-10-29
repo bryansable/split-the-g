@@ -121,7 +121,7 @@ export function Friends() {
       <PageTitle sub={`You are @${profile.username}`}>Friends</PageTitle>
 
       <Card className="space-y-2">
-        <div className="text-cream/60 text-xs uppercase tracking-wider">Add a friend</div>
+        <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Add a friend</div>
         <div className="flex gap-2">
           <Input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" />
           <Button onClick={() => add()} disabled={busy || !username.trim()}>
@@ -137,7 +137,7 @@ export function Friends() {
 
       {incoming.length > 0 && (
         <Card className="space-y-2">
-          <div className="text-cream/60 text-xs uppercase tracking-wider">Requests</div>
+          <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Requests</div>
           {incoming.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-2">
               <span className="text-cream">@{r.other?.username ?? 'someone'}</span>
@@ -155,7 +155,7 @@ export function Friends() {
       )}
 
       <Card className="space-y-2">
-        <div className="text-cream/60 text-xs uppercase tracking-wider">Friends ({friends.length})</div>
+        <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Friends ({friends.length})</div>
         {friends.length === 0 && <p className="text-cream/50 text-sm">No friends yet. Share your invite link.</p>}
         {friends.map((r) => (
           <div key={r.id} className="flex items-center justify-between">

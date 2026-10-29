@@ -57,9 +57,9 @@ export function Profile() {
       ) : (
         <>
           <Card className="space-y-3">
-            <div className="text-cream/60 text-xs uppercase tracking-wider">Signed in as</div>
+            <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Signed in as</div>
             <div className="text-cream">{session.user.email}</div>
-            <div className="text-cream/60 text-xs uppercase tracking-wider pt-2">Username</div>
+            <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em] pt-2">Username</div>
             <div className="flex gap-2">
               <Input placeholder="e.g. bryan_g" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" />
               <Button

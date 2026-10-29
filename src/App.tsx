@@ -1,4 +1,5 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { Chalkboard, Cheers, Person, Pint, PubSign, Shamrock, Trophy } from './components/icons'
 import { AuthProvider, useAuth } from './data/AuthContext'
 import { Contest } from './screens/Contest'
 import { Friends } from './screens/Friends'
@@ -9,11 +10,11 @@ import { Result } from './screens/Result'
 import { Score } from './screens/Score'
 
 const tabs = [
-  { to: '/', label: 'Home', icon: '🏠' },
-  { to: '/score', label: 'Score', icon: '🍺' },
-  { to: '/history', label: 'History', icon: '📈' },
-  { to: '/friends', label: 'Friends', icon: '👥' },
-  { to: '/contest', label: 'Contest', icon: '🏆' },
+  { to: '/', label: 'Home', Icon: PubSign },
+  { to: '/score', label: 'Score', Icon: Pint },
+  { to: '/history', label: 'History', Icon: Chalkboard },
+  { to: '/friends', label: 'Friends', Icon: Cheers },
+  { to: '/contest', label: 'Contest', Icon: Trophy },
 ]
 
 function Shell() {
@@ -24,11 +25,13 @@ function Shell() {
   return (
     <div className="h-dvh flex flex-col bg-ink text-cream">
       {!fullBleed && (
-        <header className="flex items-center justify-between px-4 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 border-b border-white/10">
-          <NavLink to="/" className="font-serif text-lg tracking-wide">
+        <header className="relative flex items-center justify-between px-4 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-2.5 bg-wood border-b-2 pub-rule">
+          <NavLink to="/" className="flex items-center gap-2 font-display text-gold tracking-[0.2em] uppercase text-sm">
+            <Shamrock size={18} />
             Split The G
           </NavLink>
-          <NavLink to="/profile" className="text-sm text-cream/70 hover:text-cream">
+          <NavLink to="/profile" className="flex items-center gap-1.5 text-xs text-cream/75 hover:text-gold">
+            <Person size={18} />
             {session ? `@${profile?.username ?? 'set name'}` : 'Sign in'}
           </NavLink>
         </header>
@@ -45,16 +48,18 @@ function Shell() {
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
-      <nav className="flex border-t border-white/10 bg-ink pb-[env(safe-area-inset-bottom)]">
-        {tabs.map((t) => (
+      <nav className="flex bg-wood border-t-2 pub-rule pb-[env(safe-area-inset-bottom)]">
+        {tabs.map(({ to, label, Icon }) => (
           <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.to === '/'}
-            className={({ isActive }) => `flex-1 flex flex-col items-center py-2 text-[11px] ${isActive ? 'text-cream' : 'text-cream/40'}`}
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] uppercase tracking-[0.14em] font-display ${isActive ? 'text-gold' : 'text-cream/45'}`
+            }
           >
-            <span className="text-lg leading-none mb-0.5">{t.icon}</span>
-            {t.label}
+            <Icon size={22} />
+            {label}
           </NavLink>
         ))}
       </nav>

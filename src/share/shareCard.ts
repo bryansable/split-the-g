@@ -24,10 +24,22 @@ export async function renderShareCard(snapshotUrl: string | null, result: ScoreR
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#0a0a0a'
+  try {
+    await document.fonts.load('bold 200px Cinzel')
+  } catch {
+    /* fall back to Georgia */
+  }
+  const display = "Cinzel, Georgia, 'Times New Roman', serif"
+  ctx.fillStyle = '#0d0906'
   ctx.fillRect(0, 0, W, H)
+  // gold frame like a pub sign
+  ctx.strokeStyle = '#c9a447'
+  ctx.lineWidth = 6
+  ctx.strokeRect(24, 24, W - 48, H - 48)
+  ctx.lineWidth = 2
+  ctx.strokeRect(38, 38, W - 76, H - 76)
 
-  const pad = 60
+  const pad = 70
   const imgBox = { x: pad, y: pad, w: W - pad * 2, h: 760 }
   if (snapshotUrl) {
     const img = await loadImage(snapshotUrl)
@@ -40,7 +52,7 @@ export async function renderShareCard(snapshotUrl: string | null, result: ScoreR
     ctx.drawImage(img, imgBox.x + (imgBox.w - dw) / 2, imgBox.y + (imgBox.h - dh) / 2, dw, dh)
     ctx.restore()
   } else {
-    ctx.fillStyle = '#1a1a1a'
+    ctx.fillStyle = '#241710'
     roundRect(ctx, imgBox.x, imgBox.y, imgBox.w, imgBox.h, 36)
     ctx.fill()
   }
@@ -49,22 +61,22 @@ export async function renderShareCard(snapshotUrl: string | null, result: ScoreR
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = color
-  ctx.font = 'bold 220px Georgia, serif'
-  ctx.fillText(String(result.score), pad, imgBox.y + imgBox.h + 250)
+  ctx.font = `bold 200px ${display}`
+  ctx.fillText(String(result.score), pad, imgBox.y + imgBox.h + 240)
 
-  ctx.fillStyle = '#f5e6c8'
-  ctx.font = 'bold 64px Georgia, serif'
-  ctx.fillText(result.title, pad + 330, imgBox.y + imgBox.h + 170)
-  ctx.font = '36px system-ui, sans-serif'
+  ctx.fillStyle = '#f3e6c9'
+  ctx.font = `bold 56px ${display}`
+  ctx.fillText(result.title, pad + 360, imgBox.y + imgBox.h + 165)
+  ctx.font = '34px system-ui, sans-serif'
   ctx.fillStyle = '#c9bda6'
-  ctx.fillText(result.detail, pad + 330, imgBox.y + imgBox.h + 230)
+  ctx.fillText(result.detail, pad + 360, imgBox.y + imgBox.h + 225)
 
-  ctx.font = 'bold 40px system-ui, sans-serif'
-  ctx.fillStyle = '#f5e6c8'
-  ctx.fillText('SPLIT THE G', pad, H - 110)
-  ctx.font = '30px system-ui, sans-serif'
+  ctx.font = `bold 38px ${display}`
+  ctx.fillStyle = '#c9a447'
+  ctx.fillText('SPLIT THE G', pad, H - 120)
+  ctx.font = '28px system-ui, sans-serif'
   ctx.fillStyle = '#8a8070'
-  ctx.fillText(`${when.toLocaleDateString()}  ·  ${APP_URL.replace('https://', '')}`, pad, H - 60)
+  ctx.fillText(`${when.toLocaleDateString()}  ·  ${APP_URL.replace('https://', '')}`, pad, H - 72)
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png')

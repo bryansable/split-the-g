@@ -73,7 +73,7 @@ export function Contest() {
 
       <Card className="flex items-center justify-between">
         <div>
-          <div className="text-cream/60 text-xs uppercase tracking-wider">Your best today</div>
+          <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em]">Your best today</div>
           <div className="font-serif text-4xl" style={{ color: myBest === null ? '#f5e6c8' : TIER_COLOR[tierFor(myBest)] }}>
             {myBest ?? '–'}
           </div>
@@ -93,7 +93,7 @@ export function Contest() {
         <>
           {error && <Notice tone="warn">{error}</Notice>}
           <Card>
-            <div className="text-cream/60 text-xs uppercase tracking-wider mb-2">Leaderboard</div>
+            <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em] mb-2">Leaderboard</div>
             {today === null ? (
               <p className="text-cream/50 text-sm">Loading…</p>
             ) : today.length === 0 ? (

@@ -33,7 +33,7 @@ export function History() {
             const tier = tierFor(a.score)
             const d = new Date(a.createdAt)
             return (
-              <li key={a.id} className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2">
+              <li key={a.id} className="flex items-center gap-3 rounded-md bg-stout border border-gold/15 px-3 py-2">
                 <span className="font-serif text-2xl w-12 text-right" style={{ color: TIER_COLOR[tier] }}>
                   {a.score}
                 </span>

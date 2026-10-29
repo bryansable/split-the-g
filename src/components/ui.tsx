@@ -1,14 +1,16 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { Rule } from './icons'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
-const base = 'inline-flex items-center justify-center gap-2 rounded-full font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none'
+const base =
+  'inline-flex items-center justify-center gap-2 rounded-md font-display tracking-wide uppercase text-[0.82em] transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none'
 const variants: Record<Variant, string> = {
-  primary: 'bg-cream text-ink hover:bg-cream/90',
-  secondary: 'bg-white/10 text-cream hover:bg-white/15',
-  ghost: 'text-cream/80 hover:text-cream hover:bg-white/5',
-  danger: 'bg-red-500/20 text-red-300 hover:bg-red-500/30',
+  primary: 'bg-gold text-ink border border-gold shadow-[inset_0_1px_0_rgba(255,255,255,.35)] hover:bg-[#d7b45a]',
+  secondary: 'bg-wood text-cream border border-gold/40 hover:border-gold/80',
+  ghost: 'text-gold hover:text-cream hover:bg-white/5',
+  danger: 'bg-claret/30 text-cream border border-claret/60 hover:bg-claret/45',
 }
 const sizes = {
   sm: 'px-3 py-1.5 text-sm',
@@ -46,23 +48,24 @@ export function LinkButton({
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl bg-white/5 border border-white/10 p-4 ${className}`}>{children}</div>
+  return <div className={`rounded-lg bg-wood/80 border border-gold/25 p-4 shadow-[0_1px_0_rgba(201,164,71,.15)] ${className}`}>{children}</div>
 }
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="mb-4">
-      <h1 className="font-serif text-3xl text-cream">{children}</h1>
-      {sub && <p className="text-cream/60 text-sm mt-1">{sub}</p>}
+      <h1 className="font-display text-2xl tracking-wider text-gold uppercase">{children}</h1>
+      <Rule className="my-2" />
+      {sub && <p className="text-cream/65 text-sm">{sub}</p>}
     </div>
   )
 }
 
 export function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-xl bg-white/5 px-3 py-2 text-center">
-      <div className="font-serif text-2xl text-cream">{value}</div>
-      <div className="text-[11px] uppercase tracking-wider text-cream/50">{label}</div>
+    <div className="rounded-md bg-stout border border-gold/20 px-3 py-2 text-center">
+      <div className="font-display text-2xl text-cream">{value}</div>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-gold/80">{label}</div>
     </div>
   )
 }
@@ -71,12 +74,21 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-xl bg-white/5 border border-white/15 px-4 py-3 text-cream placeholder:text-cream/30 outline-none focus:border-cream/50 ${props.className ?? ''}`}
+      className={`w-full rounded-md bg-stout border border-gold/30 px-4 py-3 text-cream placeholder:text-cream/30 outline-none focus:border-gold ${props.className ?? ''}`}
     />
   )
 }
 
 export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warn' | 'ok' }) {
-  const t = tone === 'warn' ? 'border-amber-400/40 text-amber-200' : tone === 'ok' ? 'border-green-400/40 text-green-200' : 'border-white/15 text-cream/80'
-  return <div className={`rounded-xl border bg-white/5 px-4 py-3 text-sm ${t}`}>{children}</div>
+  const t =
+    tone === 'warn'
+      ? 'border-gold/60 text-gold bg-gold/10'
+      : tone === 'ok'
+        ? 'border-emerald/70 text-cream bg-emerald/15'
+        : 'border-gold/25 text-cream/85 bg-wood/60'
+  return <div className={`rounded-md border px-4 py-3 text-sm ${t}`}>{children}</div>
+}
+
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return <div className="text-gold/80 text-[11px] uppercase tracking-[0.18em] mb-2">{children}</div>
 }

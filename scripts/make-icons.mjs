@@ -3,8 +3,8 @@
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
 
-const BG = [10, 10, 10]
-const FG = [245, 230, 200]
+const BG = [13, 9, 6] // stout black
+const FG = [201, 164, 71] // pub gold
 
 function crc32(buf) {
   let c
@@ -105,9 +105,9 @@ writeFileSync('public/apple-touch-icon.png', icon(180, false))
 writeFileSync(
   'public/icon.svg',
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<rect width="100" height="100" rx="18" fill="#0a0a0a"/>
-<path d="M78 44 A28 28 0 1 0 78 56" fill="none" stroke="#f5e6c8" stroke-width="11" stroke-linecap="butt"/>
-<path d="M50 50 H78 V66" fill="none" stroke="#f5e6c8" stroke-width="11"/>
+<rect width="100" height="100" rx="18" fill="#0d0906"/>
+<path d="M78 44 A28 28 0 1 0 78 56" fill="none" stroke="#c9a447" stroke-width="11" stroke-linecap="butt"/>
+<path d="M50 50 H78 V66" fill="none" stroke="#c9a447" stroke-width="11"/>
 </svg>
 `,
 )
