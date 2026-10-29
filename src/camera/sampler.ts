@@ -1,6 +1,7 @@
 import { detectLiquidLine, type Detection } from '../engine/detect'
 import { containerToMedia, coverTransform, mediaToContainer } from '../engine/mapping'
 import type { GlassFrame } from '../engine/glass'
+import { ROI_HALF_WIDTH, glassRoi } from '../engine/roi'
 
 export type MediaSource =
   | { kind: 'video'; el: HTMLVideoElement }
@@ -40,18 +41,13 @@ export function sampleLine(
   const t = coverTransform(containerW, containerH, w, h)
   const rim = containerToMedia(t, containerW / 2, frame.rimY)
   const base = containerToMedia(t, containerW / 2, frame.baseY)
-  const halfW = containerW * 0.12 // central column of the glass
-  const left = containerToMedia(t, containerW / 2 - halfW, 0).x
-  const right = containerToMedia(t, containerW / 2 + halfW, 0).x
-
-  const glassH = base.y - rim.y
-  const roi = {
-    x0: left * scale,
-    x1: right * scale,
-    // ignore the very top (empty glass / rim glare) and bottom
-    y0: (rim.y + glassH * 0.04) * scale,
-    y1: (base.y - glassH * 0.05) * scale,
-  }
+  const centre = containerToMedia(t, containerW / 2, 0).x
+  // Column width is relative to the container (what the user sees), so convert
+  // it into sample pixels through the cover transform.
+  const colHalf = (containerW * ROI_HALF_WIDTH) / t.scale
+  const roi = glassRoi(sw, rim.y * scale, base.y * scale, centre * scale)
+  roi.x0 = (centre - colHalf) * scale
+  roi.x1 = (centre + colHalf) * scale
   const detection = detectLiquidLine(ctx.getImageData(0, 0, sw, sh), roi)
   if (!detection) return null
   const mediaY = detection.y / scale

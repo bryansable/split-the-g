@@ -40,11 +40,42 @@ describe('detectLiquidLine', () => {
     expect(d?.y).toBe(33)
   })
 
-  it('ignores dark-to-bright edges and flat images', () => {
-    const inverted = frame(40, 60, 25, 20, 235)
-    expect(detectLiquidLine(inverted, { x0: 10, x1: 30, y0: 0, y1: 60 })).toBeNull()
+  it('also accepts dark-to-bright edges, at a lower score', () => {
+    const down = detectLiquidLine(frame(40, 60, 25, 235, 20), { x0: 10, x1: 30, y0: 0, y1: 60 })!
+    const up = detectLiquidLine(frame(40, 60, 25, 20, 235), { x0: 10, x1: 30, y0: 0, y1: 60 })!
+    expect(up.y).toBe(25)
+    expect(up.step).toBeLessThan(down.step)
+  })
+
+  it('finds a thin dark meniscus line in a uniform field (clear water)', () => {
+    const img = frame(40, 60, 0, 150, 150)
+    // two dark rows at y=30..31
+    for (let y = 30; y < 32; y++) {
+      for (let x = 0; x < 40; x++) {
+        const i = (y * 40 + x) * 4
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = 90
+      }
+    }
+    const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 0, y1: 60 })
+    expect(d).not.toBeNull()
+    expect(Math.abs(d!.y - 30)).toBeLessThanOrEqual(1)
+  })
+
+  it('returns null on a flat image', () => {
     const flat = frame(40, 60, 25, 120, 120)
     expect(detectLiquidLine(flat, { x0: 10, x1: 30, y0: 0, y1: 60 })).toBeNull()
+  })
+
+  it('needs at least two of three strips to agree', () => {
+    // edge only in the left third of the column
+    const img = frame(60, 60, 0, 200, 200)
+    for (let y = 25; y < 60; y++) {
+      for (let x = 10; x < 20; x++) {
+        const i = (y * 60 + x) * 4
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = 20
+      }
+    }
+    expect(detectLiquidLine(img, { x0: 10, x1: 40, y0: 0, y1: 60 })).toBeNull()
   })
 
   it('respects the ROI rows', () => {

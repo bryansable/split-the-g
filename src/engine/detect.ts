@@ -1,10 +1,19 @@
 /**
  * Liquid-line detection on a downscaled camera frame.
  *
- * Idea: inside a narrow column through the middle of the glass, foam/head is
- * bright and the beer below it is darker (black for stout, amber for lager).
- * The beer line is therefore the row with the strongest *downward* luminance
- * step. Pure function so it can be unit tested without a DOM.
+ * A liquid surface shows up as one of three horizontal signatures inside the
+ * glass column:
+ *   - step-down: bright foam/head above, darker beer below (stout, lager with head)
+ *   - step-up:   darker liquid below a brighter empty glass, or the reverse lighting
+ *   - valley:    a thin dark meniscus line with similar brightness on both sides
+ *                (clear liquids, water, pale lager without a head)
+ *
+ * Each row is scored on all three and the best row wins. To reject reflections
+ * and highlights that only cross part of the glass, the column is split into
+ * three vertical strips and a row's score is the median of the strip scores,
+ * so at least two strips must agree.
+ *
+ * Pure functions so they can be unit tested without a DOM.
  */
 
 export interface PixelSource {
@@ -26,15 +35,19 @@ export interface Detection {
   y: number
   /** 0-1, how strong the edge was. */
   confidence: number
-  /** Raw luminance step (0-255). */
+  /** Raw edge score (luminance units, 0-255). */
   step: number
 }
 
 export interface DetectOptions {
-  /** Minimum luminance drop (0-255) to accept as a liquid line. */
-  minStep?: number
-  /** Rows averaged on each side of the candidate edge. */
+  /** Minimum row score to accept as a liquid line. */
+  minScore?: number
+  /** Rows averaged on each side of a candidate step. */
   window?: number
+  /** Rows averaged on each side of a candidate valley, beyond a 1-row gap. */
+  flank?: number
+  /** Vertical strips the ROI is split into (odd number; median across strips). */
+  strips?: number
 }
 
 export function rowLuminance(img: PixelSource, roi: Roi): Float32Array {
@@ -60,33 +73,102 @@ export function rowLuminance(img: PixelSource, roi: Roi): Float32Array {
   return out
 }
 
-export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions = {}): Detection | null {
-  const minStep = opts.minStep ?? 28
-  const win = Math.max(1, opts.window ?? 3)
-  const lum = rowLuminance(img, roi)
+function mean(a: Float32Array, from: number, to: number): number {
+  let s = 0
+  for (let i = from; i < to; i++) s += a[i]
+  return s / (to - from)
+}
+
+/**
+ * Score every row of a luminance profile for "looks like a liquid surface".
+ * Row i scores the edge between rows i-1 and i, or a thin dark line centred on i.
+ * Rows too close to the ends score 0.
+ */
+export function scoreRows(lum: Float32Array, win = 3, flank = 4): Float32Array {
   const n = lum.length
-  if (n < win * 2 + 1) return null
+  const out = new Float32Array(n)
+  const margin = Math.max(win, flank + 2)
+  for (let i = margin; i < n - margin; i++) {
+    const above = mean(lum, i - win, i)
+    const below = mean(lum, i, i + win)
+    const stepDown = above - below
+    const stepUp = below - above
+    const aboveFlank = mean(lum, i - flank - 2, i - 2)
+    const belowFlank = mean(lum, i + 2, i + flank + 2)
+    const centre = mean(lum, i - 1, i + 2)
+    const valley = Math.min(aboveFlank, belowFlank) - centre
+    out[i] = Math.max(stepDown, 0.8 * stepUp, 1.3 * valley, 0)
+  }
+  return out
+}
+
+export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions = {}): Detection | null {
+  const minScore = opts.minScore ?? 18
+  const win = Math.max(1, opts.window ?? 3)
+  const flank = Math.max(1, opts.flank ?? 4)
+  const strips = Math.max(1, opts.strips ?? 3)
+
+  const x0 = Math.max(0, Math.floor(roi.x0))
+  const x1 = Math.min(img.width, Math.ceil(roi.x1))
+  if (x1 - x0 < strips) return null
+  const stripW = (x1 - x0) / strips
+  const perStrip: Float32Array[] = []
+  for (let s = 0; s < strips; s++) {
+    const sx0 = x0 + s * stripW
+    const sx1 = s === strips - 1 ? x1 : x0 + (s + 1) * stripW
+    perStrip.push(scoreRows(rowLuminance(img, { x0: sx0, x1: sx1, y0: roi.y0, y1: roi.y1 }), win, flank))
+  }
+  const n = perStrip[0].length
+  if (n === 0) return null
 
   let bestI = -1
-  let bestStep = 0
-  // Candidate edge between row i and i+1: mean(above) - mean(below)
-  for (let i = win - 1; i < n - win; i++) {
-    let above = 0
-    let below = 0
-    for (let k = 0; k < win; k++) {
-      above += lum[i - k]
-      below += lum[i + 1 + k]
-    }
-    const step = (above - below) / win
-    if (step > bestStep) {
-      bestStep = step
+  let best = 0
+  const tmp = new Float32Array(strips)
+  for (let i = 0; i < n; i++) {
+    for (let s = 0; s < strips; s++) tmp[s] = perStrip[s][i]
+    const sorted = Array.from(tmp).sort((a, b) => a - b)
+    const score = sorted[Math.floor(strips / 2)]
+    if (score > best) {
+      best = score
       bestI = i
     }
   }
-  if (bestI < 0 || bestStep < minStep) return null
+  if (bestI < 0 || best < minScore) return null
   return {
-    y: Math.floor(roi.y0) + bestI + 1,
-    step: bestStep,
-    confidence: Math.min(1, bestStep / 90),
+    y: Math.floor(roi.y0) + bestI,
+    step: best,
+    confidence: Math.min(1, best / 80),
   }
+}
+
+/**
+ * Debug helper: the strongest `count` rows with their scores (median across strips).
+ */
+export function topCandidates(img: PixelSource, roi: Roi, count = 5, opts: DetectOptions = {}): { y: number; score: number }[] {
+  const win = Math.max(1, opts.window ?? 3)
+  const flank = Math.max(1, opts.flank ?? 4)
+  const strips = Math.max(1, opts.strips ?? 3)
+  const x0 = Math.max(0, Math.floor(roi.x0))
+  const x1 = Math.min(img.width, Math.ceil(roi.x1))
+  const stripW = (x1 - x0) / strips
+  const perStrip: Float32Array[] = []
+  for (let s = 0; s < strips; s++) {
+    const sx0 = x0 + s * stripW
+    const sx1 = s === strips - 1 ? x1 : x0 + (s + 1) * stripW
+    perStrip.push(scoreRows(rowLuminance(img, { x0: sx0, x1: sx1, y0: roi.y0, y1: roi.y1 }), win, flank))
+  }
+  const n = perStrip[0]?.length ?? 0
+  const rows: { y: number; score: number }[] = []
+  for (let i = 0; i < n; i++) {
+    const vals = perStrip.map((p) => p[i]).sort((a, b) => a - b)
+    rows.push({ y: Math.floor(roi.y0) + i, score: vals[Math.floor(strips / 2)] })
+  }
+  rows.sort((a, b) => b.score - a.score)
+  // keep only local maxima that are at least 3 rows apart
+  const picked: { y: number; score: number }[] = []
+  for (const r of rows) {
+    if (picked.every((p) => Math.abs(p.y - r.y) > 3)) picked.push(r)
+    if (picked.length >= count) break
+  }
+  return picked
 }
