@@ -2,7 +2,8 @@ import { HashRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react
 import { Chalkboard, Cheers, Person, Pint, PubSign, Shamrock, Trophy } from './components/icons'
 import { Intro } from './components/Intro'
 import { AgeGate, ageConfirmed } from './components/AgeGate'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { MODE_COPY, useMode } from './data/mode'
 import { Challenge } from './screens/Challenge'
 import { HowToPlay } from './screens/HowToPlay'
 import { Privacy } from './screens/Privacy'
@@ -30,16 +31,25 @@ function Shell() {
   // Social features appear only once the backend is live.
   const tabs = allTabs.filter((t) => cloudEnabled || !t.cloud)
   const [ageOk, setAgeOk] = useState(ageConfirmed)
+  const mode = useMode()
+
+  // The edition colours the whole app through CSS variables on <html>.
+  useEffect(() => {
+    document.documentElement.dataset.theme = mode
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', MODE_COPY[mode].themeColor)
+  }, [mode])
 
   return (
     <div className="h-dvh flex flex-col bg-ink text-cream">
       <Intro />
-      {!ageOk && <AgeGate onConfirm={() => setAgeOk(true)} />}
+      {/* Pub edition needs the age answer; switching to Pub later re-asks if it was never given. */}
+      {mode === 'pub' && !ageOk && <AgeGate onConfirm={() => setAgeOk(true)} onSparkling={() => undefined} />}
       {!fullBleed && (
         <header className="relative flex items-center justify-between px-4 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-2.5 bg-wood border-b-2 pub-rule">
           <NavLink to="/" className="flex items-center gap-2 font-display text-gold tracking-[0.2em] uppercase text-sm">
             <Shamrock size={18} />
             Split The G
+            {mode === 'sparkling' && <span className="text-[9px] tracking-[0.25em] text-cream/60">Sparkling</span>}
           </NavLink>
           <NavLink to="/profile" className="flex items-center gap-1.5 text-xs text-cream/75 hover:text-gold">
             <Person size={18} />

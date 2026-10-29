@@ -6,6 +6,7 @@ import { Pint, Rule } from '../components/icons'
 import { Figure, Hr, LinkButton } from '../components/ui'
 import { computeStats, dayKey, useAttempts } from '../data/local'
 import { useAuth } from '../data/AuthContext'
+import { MODE_COPY, setMode, useMode } from '../data/mode'
 import { TIER_COLOR, tierFor } from '../engine/score'
 
 function isStandalone() {
@@ -17,6 +18,8 @@ export function Home() {
   const attempts = useAttempts()
   const stats = computeStats(attempts)
   const { session, cloudEnabled } = useAuth()
+  const mode = useMode()
+  const copy = MODE_COPY[mode]
   const [showInstall, setShowInstall] = useState(false)
 
   useEffect(() => {
@@ -31,21 +34,21 @@ export function Home() {
   return (
     <div className="flex-1 min-h-0 flex flex-col justify-between gap-3 px-5 pt-4 pb-3">
       {/* the one framed element: the pub sign */}
-      <div className="relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center shadow-[0_0_0_4px_#241710,0_0_0_5px_rgba(201,164,71,.35)]">
-        <Bubbles count={16} />
+      <div className="sign-frame relative overflow-hidden mx-auto w-full max-w-sm rounded-lg border-2 border-gold/70 bg-stout px-5 pt-3.5 pb-3 text-center">
+        <Bubbles count={mode === 'sparkling' ? 28 : 16} />
         <div className="relative z-10">
-          <div className="text-[9px] uppercase tracking-[0.35em] text-gold/80">Est. for the first sip</div>
+          <div className="text-[9px] uppercase tracking-[0.35em] text-gold/80">{mode === 'sparkling' ? copy.edition : 'Est. for the first sip'}</div>
           <div className="font-display text-4xl leading-[1.05] text-cream mt-1.5 tracking-wide">
             Split The <span className="inline-block border-[3px] border-gold text-gold rounded-full px-2.5 leading-none py-0.5">G</span>
           </div>
           <Rule className="my-2" />
-          <p className="text-cream/70 text-xs tracking-wide">Point at your glass. One sip. Land the line on the G.</p>
+          <p className="text-cream/70 text-xs tracking-wide">{copy.tagline}</p>
         </div>
       </div>
 
       <LinkButton to="/score" size="lg" className="w-full">
         <Pint size={22} />
-        Score a pint
+        {copy.scoreButton}
       </LinkButton>
 
       {/* figures: plain numbers, hairline dividers */}
@@ -102,7 +105,17 @@ export function Home() {
             <span className="text-gold/80">Add to home screen</span> for full screen: Share, then Add to Home Screen.{' '}
           </>
         )}
-        Independent fan project. Not affiliated with any brewery.{' '}
+        {mode === 'pub' ? (
+          'Independent fan project. Not affiliated with any brewery.'
+        ) : (
+          <>
+            Alcohol-free edition. Same game, sparkling water.{' '}
+            <button className="text-gold/80 underline-offset-2 hover:underline" onClick={() => setMode('pub')}>
+              Of legal drinking age now? Switch to the pub edition
+            </button>
+            .
+          </>
+        )}{' '}
         <Link to="/how-to-play" className="text-gold/80 underline-offset-2 hover:underline">
           How to play
         </Link>{' '}

@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Hr, Input, Notice, Page, PageTitle, SectionLabel } from '../components/ui'
 import { useAuth } from '../data/AuthContext'
+import { setMode, useMode } from '../data/mode'
 import { useAttempts } from '../data/local'
 import { setUsername as saveUsername, signInWithEmail, signOut } from '../data/supabase'
 import { GLASS_HEIGHT_MM, TARGET_FRACTION } from '../engine/glass'
 
 export function Profile() {
+  const mode = useMode()
   const { cloudEnabled, session, profile, refreshProfile, loading } = useAuth()
   const attempts = useAttempts()
   const [email, setEmail] = useState('')
@@ -96,6 +98,30 @@ export function Profile() {
           <Notice tone={msg.tone}>{msg.text}</Notice>
         </div>
       )}
+
+      <Hr className="mt-6" />
+      <div className="pt-4">
+        <SectionLabel>Edition</SectionLabel>
+        <div className="flex rounded-md border border-gold/40 overflow-hidden text-sm">
+          <button
+            className={`flex-1 py-2.5 font-display uppercase tracking-wide text-[0.8em] ${mode === 'pub' ? 'bg-gold text-ink' : 'text-cream/70'}`}
+            onClick={() => setMode('pub')}
+          >
+            Pub
+          </button>
+          <button
+            className={`flex-1 py-2.5 font-display uppercase tracking-wide text-[0.8em] ${mode === 'sparkling' ? 'bg-gold text-ink' : 'text-cream/70'}`}
+            onClick={() => setMode('sparkling')}
+          >
+            Sparkling
+          </button>
+        </div>
+        <p className="mt-2 text-cream/45 text-xs">
+          {mode === 'pub'
+            ? 'Beer, gold on stout. Adults only.'
+            : 'Sparkling water, ice blue. Same G, same scoring, no beer. Of legal drinking age now? Choose Pub and answer the age question.'}
+        </p>
+      </div>
 
       <Hr className="mt-6" />
       <div className="pt-4 text-xs text-cream/50 leading-relaxed space-y-2">

@@ -1,4 +1,5 @@
 import type { ScoreResult } from '../engine/score'
+import { MODE_COPY, getMode } from '../data/mode'
 import { APP_URL } from './shareCard'
 
 const KEY = 'stg.challenge'
@@ -14,6 +15,7 @@ export interface Challenge {
 export function challengeUrl(score: number, from?: string): string {
   const p = new URLSearchParams({ s: String(score) })
   if (from) p.set('f', from)
+  if (getMode() === 'sparkling') p.set('m', 's')
   return `${APP_URL}#/challenge?${p.toString()}`
 }
 
@@ -22,7 +24,8 @@ export function challengeText(result: ScoreResult, from?: string): string {
   const who = from ? `@${from}` : 'I'
   const verb = from ? 'scored' : 'just scored'
   const brag = result.tier === 'split' ? 'Split the G. Dead centre.' : result.title + '.'
-  return `${who} ${verb} ${result.score}/100 on Split The G 🍺 ${brag} Think you can beat it? Your turn: ${challengeUrl(result.score, from)}`
+  const emoji = MODE_COPY[getMode()].emoji
+  return `${who} ${verb} ${result.score}/100 on Split The G ${emoji} ${brag} Think you can beat it? Your turn: ${challengeUrl(result.score, from)}`
 }
 
 /**
