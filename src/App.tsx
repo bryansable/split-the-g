@@ -1,7 +1,11 @@
 import { HashRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Chalkboard, Cheers, Person, Pint, PubSign, Shamrock, Trophy } from './components/icons'
 import { Intro } from './components/Intro'
+import { AgeGate, ageConfirmed } from './components/AgeGate'
+import { useState } from 'react'
 import { Challenge } from './screens/Challenge'
+import { HowToPlay } from './screens/HowToPlay'
+import { Privacy } from './screens/Privacy'
 import { AuthProvider, useAuth } from './data/AuthContext'
 import { Contest } from './screens/Contest'
 import { Friends } from './screens/Friends'
@@ -25,10 +29,12 @@ function Shell() {
   const fullBleed = pathname === '/score'
   // Social features appear only once the backend is live.
   const tabs = allTabs.filter((t) => cloudEnabled || !t.cloud)
+  const [ageOk, setAgeOk] = useState(ageConfirmed)
 
   return (
     <div className="h-dvh flex flex-col bg-ink text-cream">
       <Intro />
+      {!ageOk && <AgeGate onConfirm={() => setAgeOk(true)} />}
       {!fullBleed && (
         <header className="relative flex items-center justify-between px-4 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-2.5 bg-wood border-b-2 pub-rule">
           <NavLink to="/" className="flex items-center gap-2 font-display text-gold tracking-[0.2em] uppercase text-sm">
@@ -51,6 +57,8 @@ function Shell() {
           <Route path="/contest" element={cloudEnabled ? <Contest /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/challenge" element={<Challenge />} />
+          <Route path="/how-to-play" element={<HowToPlay />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

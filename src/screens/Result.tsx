@@ -9,6 +9,7 @@ import { TIER_COLOR, type ScoreResult } from '../engine/score'
 import { renderShareCard, shareResult, type ShareOutcome } from '../share/shareCard'
 import { challengeText, clearChallenge, loadChallenge, smsHref } from '../share/challenge'
 import { Cheers } from '../components/icons'
+import { AdSlot } from '../ads/AdSlot'
 
 export interface PendingResult {
   id: string
@@ -119,6 +120,7 @@ export function Result() {
         </LinkButton>
       </div>
       {shareMsg && <Notice tone="ok">{shareMsg}</Notice>}
+      <AdSlot slot="result" />
       <p className="text-center text-xs text-cream/40">
         Saved to your history{session ? ' and synced' : ''}. <LinkButton to="/history" variant="ghost" size="sm">View history</LinkButton>
       </p>

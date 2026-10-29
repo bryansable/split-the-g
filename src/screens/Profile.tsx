@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Hr, Input, Notice, Page, PageTitle, SectionLabel } from '../components/ui'
 import { useAuth } from '../data/AuthContext'
 import { useAttempts } from '../data/local'
@@ -105,6 +106,14 @@ export function Profile() {
           percent of glass height outside it costs 6 points. The glass is framed automatically and the level is read at the front of the glass.
         </p>
         <p>Split The G is an independent fan project and is not affiliated with or endorsed by any brewery.</p>
+        <p className="pt-2 flex gap-4">
+          <Link to="/how-to-play" className="text-gold underline-offset-4 hover:underline">
+            How to play
+          </Link>
+          <Link to="/privacy" className="text-gold underline-offset-4 hover:underline">
+            Privacy
+          </Link>
+        </p>
       </div>
     </Page>
   )

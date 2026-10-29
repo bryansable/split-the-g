@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AdSlot } from '../ads/AdSlot'
 import { Bubbles } from '../components/Bubbles'
 import { Pint, Rule } from '../components/icons'
 import { Figure, Hr, LinkButton } from '../components/ui'
@@ -93,13 +94,22 @@ export function Home() {
         <Hr />
       </div>
 
+      <AdSlot slot="home" />
+
       <p className="text-[10px] text-cream/40 text-center leading-snug">
         {showInstall && (
           <>
             <span className="text-gold/80">Add to home screen</span> for full screen: Share, then Add to Home Screen.{' '}
           </>
         )}
-        Independent fan project. Not affiliated with any brewery.
+        Independent fan project. Not affiliated with any brewery.{' '}
+        <Link to="/how-to-play" className="text-gold/80 underline-offset-2 hover:underline">
+          How to play
+        </Link>{' '}
+        ·{' '}
+        <Link to="/privacy" className="text-gold/80 underline-offset-2 hover:underline">
+          Privacy
+        </Link>
       </p>
     </div>
   )

@@ -1,16 +1,35 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * AdSense needs an ads.txt at the domain root naming the publisher. Emit it
+ * at build time from VITE_ADSENSE_CLIENT so it cannot drift from the config.
+ */
+function adsTxt(client: string | undefined): Plugin {
+  const pub = client?.replace(/^ca-/, '').trim()
+  return {
+    name: 'ads-txt',
+    apply: 'build',
+    generateBundle() {
+      if (!pub) return
+      this.emitFile({ type: 'asset', fileName: 'ads.txt', source: `google.com, ${pub}, DIRECT, f08c47fec0942fa0\n` })
+    },
+  }
+}
+
 // Served from https://pintsplit.com/ (GitHub Pages with a custom domain, see public/CNAME).
 // Set VITE_BASE=/split-the-g/ to serve from a github.io project path instead.
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  return {
   base: process.env.VITE_BASE ?? '/',
   plugins: [
     react(),
     tailwindcss(),
+    adsTxt(env.VITE_ADSENSE_CLIENT),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
@@ -44,4 +63,5 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
   },
+  }
 })
