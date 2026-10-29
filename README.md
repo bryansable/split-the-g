@@ -47,11 +47,14 @@ Sign-in is a passwordless magic link by email. Attempts recorded while signed ou
 
 ## How scoring works
 
-Everything is measured as a fraction of the glass height between the RIM and BASE guides you line up on screen, so glass size and distance do not matter.
+Everything is measured as a fraction of the glass height between the rim and the base, so glass size and distance do not matter. Readings are taken at the front of the glass, where the G is printed.
 
+- Framing: `src/engine/frame.ts` finds the glass automatically. It tracks the two side walls as vertical edges, takes the rim and base from where they end, then refines the rim to the near arc of its ellipse and the base to the bottom edge of the foot. The RIM and BASE handles on screen are only for correcting it.
 - Target: `TARGET_FRACTION = 0.30` (30% of the way down from the rim) in `src/engine/glass.ts`, the centre of the G on the official tulip glass. A band of ±2% around it is the G's bar.
-- Detection: `src/engine/detect.ts` scans a column through the middle of the glass for the strongest bright-to-dark step (foam above, beer below).
+- Detection: `src/engine/detect.ts` scores each row of a column through the middle of the glass for foam-over-beer steps, the reverse, and thin dark meniscus lines; three strips across the column must agree. The reported line is the near (bottom) edge of the meniscus band. The search stops 75% of the way down so the foot of the glass cannot win.
 - Score: 100 inside the band, then 6 points off per percent of glass height outside it. 100 = Split, 85+ = So close, 60+ = Decent, below = Rookie.
+
+Real-photo regression tests live in `src/engine/fixtures.test.ts` and read PNGs from a gitignored `fixtures/` folder; they skip when the files are absent.
 
 If you measure your own glass and the G sits elsewhere, change `TARGET_FRACTION`; nothing else hard-codes it.
 

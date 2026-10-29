@@ -58,7 +58,8 @@ describe('detectLiquidLine', () => {
     }
     const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 0, y1: 60 })
     expect(d).not.toBeNull()
-    expect(Math.abs(d!.y - 30)).toBeLessThanOrEqual(1)
+    // reports the near edge: the first bright row below the dark band
+    expect(d!.y).toBe(32)
   })
 
   it('returns null on a flat image', () => {

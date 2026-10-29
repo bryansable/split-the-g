@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Overlay, type Handle } from '../camera/Overlay'
-import { sampleLine, snapshot, type MediaSource } from '../camera/sampler'
+import { findGlass, findLine, grabSample, snapshot, type MediaSource } from '../camera/sampler'
 import { useCamera } from '../camera/useCamera'
 import { DEFAULT_FRAME, G_BAND, TARGET_FRACTION, clamp, fractionToY, lineFraction, type GlassFrame } from '../engine/glass'
 import { TIER_COLOR, scoreAttempt } from '../engine/score'
@@ -11,6 +11,10 @@ import { Button, Notice } from '../components/ui'
 import type { PendingResult } from './Result'
 
 const SAMPLE_MS = 250
+/** Auto-frame results below this confidence are ignored. */
+const MIN_FRAME_CONFIDENCE = 0.35
+
+type Walls = { left: number; right: number }
 
 export function Score() {
   const navigate = useNavigate()
@@ -23,6 +27,9 @@ export function Score() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoReady, setPhotoReady] = useState(false)
   const [frameFrac, setFrameFrac] = useState<GlassFrame>(DEFAULT_FRAME)
+  const [walls, setWalls] = useState<Walls | null>(null)
+  const [autoFrame, setAutoFrame] = useState(true)
+  const [frameFound, setFrameFound] = useState(false)
   const [lineFrac, setLineFrac] = useState<number | null>(null)
   const [autoDetect, setAutoDetect] = useState(true)
   const [glassType, setGlassType] = useState<GlassType>('plain')
@@ -47,6 +54,12 @@ export function Score() {
     () => ({ rimY: frameFrac.rimY * size.h, baseY: frameFrac.baseY * size.h }),
     [frameFrac, size.h],
   )
+  // Latest frame for the sampling loop without re-subscribing the interval.
+  const framePxRef = useRef(framePx)
+  framePxRef.current = framePx
+  const wallsRef = useRef(walls)
+  wallsRef.current = walls
+
   const lineY = lineFrac === null ? null : lineFrac * size.h
   const result = useMemo(() => (lineY === null ? null : scoreAttempt(lineFraction(lineY, framePx))), [lineY, framePx])
 
@@ -58,33 +71,70 @@ export function Score() {
     return null
   }, [usingPhoto, photoReady, camera.status])
 
-  // Detection loop
+  // Sampling loop: auto-frame the glass, then find the liquid line inside it.
   useEffect(() => {
-    if (!autoDetect || size.h === 0) return
+    if (size.h === 0 || (!autoFrame && !autoDetect)) return
     sampleCanvas.current ??= document.createElement('canvas')
     const tick = () => {
       const src = getSource()
       if (!src) return
-      const found = sampleLine(src, sampleCanvas.current!, size.w, size.h, framePx)
-      if (found) {
-        const next = found.y / size.h
-        setLineFrac((prev) => (prev === null ? next : prev * 0.4 + next * 0.6))
-        setConfidence(found.detection.confidence)
-      } else {
-        setConfidence(0)
+      const s = grabSample(src, sampleCanvas.current!, size.w, size.h)
+      if (!s) return
+
+      let frame = framePxRef.current
+      let centreX = wallsRef.current ? (wallsRef.current.left + wallsRef.current.right) / 2 : size.w / 2
+      if (autoFrame) {
+        const g = findGlass(s)
+        if (g && g.confidence >= MIN_FRAME_CONFIDENCE) {
+          const next: GlassFrame = {
+            rimY: clamp(g.frame.rimY, size.h * 0.02, size.h * 0.8),
+            baseY: clamp(g.frame.baseY, size.h * 0.2, size.h * 0.98),
+          }
+          // Photos are static: take the fix as is. Live video: smooth it.
+          const k = usingPhoto ? 1 : 0.5
+          frame = {
+            rimY: frame.rimY * (1 - k) + next.rimY * k,
+            baseY: frame.baseY * (1 - k) + next.baseY * k,
+          }
+          centreX = (g.walls.left + g.walls.right) / 2
+          setFrameFrac({ rimY: frame.rimY / size.h, baseY: frame.baseY / size.h })
+          setWalls((prev) =>
+            prev && !usingPhoto
+              ? { left: prev.left * (1 - k) + g.walls.left * k, right: prev.right * (1 - k) + g.walls.right * k }
+              : g.walls,
+          )
+          setFrameFound(true)
+        } else {
+          setFrameFound(false)
+        }
+      }
+
+      if (autoDetect) {
+        const found = findLine(s, frame, centreX)
+        if (found) {
+          const next = found.y / size.h
+          setLineFrac((prev) => (prev === null || usingPhoto ? next : prev * 0.4 + next * 0.6))
+          setConfidence(found.detection.confidence)
+        } else {
+          setConfidence(0)
+        }
       }
     }
     tick()
     const id = window.setInterval(tick, usingPhoto ? 1000 : SAMPLE_MS)
     return () => window.clearInterval(id)
-  }, [autoDetect, size, framePx, getSource, usingPhoto])
+  }, [autoFrame, autoDetect, size, getSource, usingPhoto])
 
   const onDrag = useCallback(
     (handle: Handle, y: number) => {
       const f = y / size.h
-      if (handle === 'rim') setFrameFrac((p) => ({ ...p, rimY: clamp(f, 0.02, p.baseY - 0.15) }))
-      else if (handle === 'base') setFrameFrac((p) => ({ ...p, baseY: clamp(f, p.rimY + 0.15, 0.98) }))
-      else {
+      if (handle === 'rim') {
+        setAutoFrame(false)
+        setFrameFrac((p) => ({ ...p, rimY: clamp(f, 0.02, p.baseY - 0.15) }))
+      } else if (handle === 'base') {
+        setAutoFrame(false)
+        setFrameFrac((p) => ({ ...p, baseY: clamp(f, p.rimY + 0.15, 0.98) }))
+      } else {
         setAutoDetect(false)
         setLineFrac(clamp(f, 0, 1))
       }
@@ -92,14 +142,21 @@ export function Score() {
     [size.h],
   )
 
+  function resetDetection() {
+    setLineFrac(null)
+    setAutoDetect(true)
+    setAutoFrame(true)
+    setWalls(null)
+    setFrameFound(false)
+  }
+
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     if (photoUrl) URL.revokeObjectURL(photoUrl)
     setPhotoReady(false)
     setPhotoUrl(URL.createObjectURL(file))
-    setLineFrac(null)
-    setAutoDetect(true)
+    resetDetection()
     e.target.value = ''
   }
 
@@ -107,8 +164,7 @@ export function Score() {
     if (photoUrl) URL.revokeObjectURL(photoUrl)
     setPhotoUrl(null)
     setPhotoReady(false)
-    setLineFrac(null)
-    setAutoDetect(true)
+    resetDetection()
   }
 
   function placeLineManually() {
@@ -122,8 +178,8 @@ export function Score() {
     const canvas = snapshot(src, size.w, size.h, 2)
     // snapshot() already applied the 2x scale to this context; draw in container px.
     const ctx = canvas.getContext('2d')!
-    const cx = size.w / 2
-    const halfW = size.w * 0.3
+    const cx = walls ? (walls.left + walls.right) / 2 : size.w / 2
+    const halfW = walls ? (walls.right - walls.left) / 2 : size.w * 0.3
     const tY = fractionToY(TARGET_FRACTION, framePx)
     const band = G_BAND * (framePx.baseY - framePx.rimY)
     ctx.fillStyle = 'rgba(245,230,200,0.18)'
@@ -155,6 +211,12 @@ export function Score() {
   const cameraProblem = !usingPhoto && (camera.status === 'denied' || camera.status === 'unsupported' || camera.status === 'error')
   const ready = getSource() !== null
 
+  let hint: { text: string; tone: 'info' | 'warn' } | null = null
+  if (camera.status === 'starting' && !usingPhoto) hint = { text: 'Starting camera…', tone: 'info' }
+  else if (autoFrame && !frameFound) hint = { text: 'Point at the glass with the whole glass in view.', tone: 'info' }
+  else if (lineFrac === null) hint = { text: 'Glass found. Looking for the liquid line…', tone: 'info' }
+  else if (autoDetect && confidence < 0.4) hint = { text: 'Weak edge. Drag the line if it looks wrong.', tone: 'warn' }
+
   return (
     <div className="flex flex-col h-full">
       <div ref={containerRef} className="relative flex-1 min-h-0 bg-black overflow-hidden">
@@ -179,6 +241,7 @@ export function Score() {
             result={result}
             showGhost={glassType === 'plain'}
             autoDetect={autoDetect}
+            walls={autoFrame ? walls : null}
             onDrag={onDrag}
           />
         )}
@@ -212,25 +275,28 @@ export function Score() {
             <div className="pointer-events-auto max-w-sm">
               <Notice tone="warn">{camera.error}</Notice>
             </div>
-          ) : camera.status === 'starting' && !usingPhoto ? (
-            <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cream/80">Starting camera…</span>
-          ) : lineFrac === null ? (
-            <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cream/80">
-              Drag RIM and BASE to your glass. Looking for the beer line…
+          ) : hint ? (
+            <span className={`rounded-full bg-black/60 px-3 py-1 text-xs ${hint.tone === 'warn' ? 'text-amber-200' : 'text-cream/80'}`}>
+              {hint.text}
             </span>
-          ) : autoDetect && confidence < 0.4 ? (
-            <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-amber-200">Weak edge. Drag the line if it looks wrong.</span>
           ) : null}
         </div>
       </div>
 
       {/* controls */}
       <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-ink border-t border-white/10 flex items-center justify-between gap-3">
-        <label className="flex flex-col items-center text-[11px] text-cream/70 w-20 cursor-pointer">
-          <span className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-lg">🖼️</span>
-          Pick photo
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickPhoto} />
-        </label>
+        <div className="flex flex-col items-center w-24 gap-1">
+          <label className="flex flex-col items-center text-[11px] text-cream/70 cursor-pointer">
+            <span className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-lg">🖼️</span>
+            Pick photo
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickPhoto} />
+          </label>
+          {usingPhoto && (
+            <button className="text-[11px] text-cream/60" onClick={backToCamera}>
+              Back to camera
+            </button>
+          )}
+        </div>
 
         <button
           onClick={capture}
@@ -241,25 +307,19 @@ export function Score() {
           <span className="w-16 h-16 rounded-full border-4 border-ink" />
         </button>
 
-        <div className="flex flex-col items-center w-20 gap-1">
-          {usingPhoto ? (
-            <Button size="sm" variant="secondary" onClick={backToCamera}>
-              Camera
+        <div className="flex flex-col items-center w-24 gap-1">
+          {!autoFrame || !autoDetect ? (
+            <Button size="sm" variant="secondary" onClick={resetDetection}>
+              Auto
             </Button>
-          ) : autoDetect ? (
+          ) : (
             <Button size="sm" variant="secondary" onClick={placeLineManually}>
               Manual
             </Button>
-          ) : (
-            <Button size="sm" variant="secondary" onClick={() => setAutoDetect(true)}>
-              Auto
-            </Button>
           )}
-          {usingPhoto && (
-            <button className="text-[11px] text-cream/60" onClick={() => (autoDetect ? placeLineManually() : setAutoDetect(true))}>
-              {autoDetect ? 'Manual line' : 'Auto line'}
-            </button>
-          )}
+          <span className="text-[10px] text-cream/40 text-center">
+            {autoFrame ? 'auto-framed' : 'manual frame'} · {autoDetect ? 'auto line' : 'manual line'}
+          </span>
         </div>
       </div>
     </div>

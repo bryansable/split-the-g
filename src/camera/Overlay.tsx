@@ -14,6 +14,8 @@ export interface OverlayProps {
   result: ScoreResult | null
   showGhost: boolean
   autoDetect: boolean
+  /** detected wall positions in container px, when the glass was auto-framed */
+  walls?: { left: number; right: number } | null
   onDrag: (handle: Handle, y: number) => void
 }
 
@@ -23,13 +25,13 @@ const CREAM = '#f5e6c8'
  * SVG overlay drawn on top of the camera: glass guide with draggable rim/base,
  * a ghost "G" at the target height, and the detected liquid line.
  */
-export function Overlay({ width, height, frame, lineY, result, showGhost, autoDetect, onDrag }: OverlayProps) {
+export function Overlay({ width, height, frame, lineY, result, showGhost, autoDetect, walls, onDrag }: OverlayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const dragging = useRef<Handle | null>(null)
 
   const gh = glassHeight(frame)
-  const cx = width / 2
-  const glassW = Math.min(width * 0.62, gh * 0.72)
+  const cx = walls ? (walls.left + walls.right) / 2 : width / 2
+  const glassW = walls ? walls.right - walls.left : Math.min(width * 0.62, gh * 0.72)
   const targetY = fractionToY(TARGET_FRACTION, frame)
   const gSize = G_LETTER_HEIGHT * gh
   const bandPx = G_BAND * gh
@@ -92,8 +94,15 @@ export function Overlay({ width, height, frame, lineY, result, showGhost, autoDe
         </filter>
       </defs>
 
-      {/* glass silhouette */}
-      <path d={glassPath} fill="none" stroke={CREAM} strokeOpacity={0.45} strokeWidth={2} strokeDasharray="6 6" />
+      {/* glass silhouette: detected walls, or a generic tulip guide */}
+      {walls ? (
+        <g stroke={CREAM} strokeOpacity={0.55} strokeWidth={2} strokeDasharray="6 6">
+          <line x1={walls.left} x2={walls.left} y1={top} y2={bot} />
+          <line x1={walls.right} x2={walls.right} y1={top} y2={bot} />
+        </g>
+      ) : (
+        <path d={glassPath} fill="none" stroke={CREAM} strokeOpacity={0.45} strokeWidth={2} strokeDasharray="6 6" />
+      )}
 
       {/* G band + ghost */}
       {showGhost && (

@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { PNG } from 'pngjs'
-import { detectLiquidLine, topCandidates, type PixelSource } from './detect'
+import { detectLiquidLine, rowLuminance, topCandidates, type PixelSource } from './detect'
+import { detectGlass } from './frame'
 import { glassRoi } from './roi'
 
 /**
@@ -67,7 +68,45 @@ describe('fixture: clear water in a mug (phone photo)', () => {
     const cands = topCandidates(img, roi, 6)
     console.log('water-mug candidates (expected ~%d):', waterY.toFixed(1), cands.map((c) => `${c.y}:${c.score.toFixed(1)}`).join('  '))
     const d = detectLiquidLine(img, roi)
+    const lum = rowLuminance(img, roi)
+    const y0 = Math.floor(roi.y0)
+    console.log(
+      '  luminance rows 104-122:',
+      Array.from({ length: 19 }, (_, k) => `${104 + k}:${lum[104 + k - y0].toFixed(0)}`).join(' '),
+    )
     expect(d).not.toBeNull()
-    expect(Math.abs(d!.y - waterY)).toBeLessThanOrEqual(3)
+    // detector reports the near (bottom) edge of the meniscus band
+    expect(Math.abs(d!.y - waterY)).toBeLessThanOrEqual(5)
+  })
+
+  run('frames the glass automatically: walls, front rim and base', () => {
+    const full = loadPng(path)
+    const img = downscale(full, SAMPLE_WIDTH)
+    const s = img.width / full.width
+    const g = detectGlass(img, {
+      debug: ({ lefts, rights }) => {
+        const fmt = (t: { x: number; strength: number; top: number; bottom: number }) =>
+          `x=${(t.x / s).toFixed(0)} s=${t.strength.toFixed(0)} ${(t.top / s).toFixed(0)}-${(t.bottom / s).toFixed(0)}`
+        console.log('  left candidates:', lefts.map(fmt).join(' | '))
+        console.log('  right candidates:', rights.map(fmt).join(' | '))
+      },
+    })
+    console.log(
+      'water-mug frame:',
+      g && `left=${(g.leftX / s).toFixed(0)} right=${(g.rightX / s).toFixed(0)} rimTop=${(g.rimTopY / s).toFixed(0)} rim=${(g.rimY / s).toFixed(0)} base=${(g.baseY / s).toFixed(0)} conf=${g.confidence.toFixed(2)}`,
+      '(expected ~ left=300 right=790 rim=300 base=1230)',
+    )
+    expect(g).not.toBeNull()
+    expect(Math.abs(g!.leftX / s - 300)).toBeLessThanOrEqual(25)
+    expect(Math.abs(g!.rightX / s - 790)).toBeLessThanOrEqual(25)
+    expect(Math.abs(g!.rimY / s - 300)).toBeLessThanOrEqual(30)
+    expect(Math.abs(g!.baseY / s - 1230)).toBeLessThanOrEqual(40)
+
+    // End-to-end: liquid line relative to the auto frame, read at the front.
+    const roi = glassRoi(img.width, g!.rimY, g!.baseY, (g!.leftX + g!.rightX) / 2)
+    const d = detectLiquidLine(img, roi)!
+    const frac = (d.y - g!.rimY) / (g!.baseY - g!.rimY)
+    console.log('water-mug line: y=%d (near edge expected ~%d) fraction=%s', d.y, (515 * s).toFixed(1), frac.toFixed(3))
+    expect(Math.abs(d.y - 515 * s)).toBeLessThanOrEqual(3)
   })
 })

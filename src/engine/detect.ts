@@ -48,6 +48,8 @@ export interface DetectOptions {
   flank?: number
   /** Vertical strips the ROI is split into (odd number; median across strips). */
   strips?: number
+  /** Longest dark band (fraction of ROI height) still treated as a meniscus. */
+  maxBandFraction?: number
 }
 
 export function rowLuminance(img: PixelSource, roi: Roi): Float32Array {
@@ -134,11 +136,39 @@ export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions
     }
   }
   if (bestI < 0 || best < minScore) return null
+
+  // The surface of the liquid is an ellipse seen from slightly above: a dark
+  // band whose top is the far arc and whose bottom is the near arc at the
+  // front of the glass, which is what the user reads the level against. If
+  // the candidate sits on a bounded dark band, snap to the bottom of it.
+  const lum = rowLuminance(img, { x0, x1, y0: roi.y0, y1: roi.y1 })
+  const nearI = nearEdge(lum, bestI, flank, Math.max(3, Math.round(n * (opts.maxBandFraction ?? 0.1))))
+
   return {
-    y: Math.floor(roi.y0) + bestI,
+    y: Math.floor(roi.y0) + nearI,
     step: best,
     confidence: Math.min(1, best / 80),
   }
+}
+
+/**
+ * Given the row scored as the surface, walk down while rows stay dark relative
+ * to the brightness above the surface. Returns the row just below the band if
+ * the band ends within `maxBand` rows (a meniscus), otherwise `i` (a step into
+ * dark beer with no lower edge).
+ */
+export function nearEdge(lum: Float32Array, i: number, flank: number, maxBand: number): number {
+  const n = lum.length
+  const a0 = Math.max(0, i - flank - 2)
+  const a1 = Math.max(a0 + 1, i - 2)
+  const aboveRef = mean(lum, a0, a1)
+  const depth = aboveRef - lum[i]
+  if (depth <= 0) return i
+  const limit = aboveRef - 0.4 * depth
+  let j = i
+  while (j + 1 < n && j - i < maxBand && lum[j + 1] < limit) j++
+  if (j - i >= maxBand) return i
+  return j + 1
 }
 
 /**
