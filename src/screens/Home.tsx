@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { APP_URL } from '../share/shareCard'
 import { AdSlot } from '../ads/AdSlot'
 import { Bubbles } from '../components/Bubbles'
 import { Pint, Rule } from '../components/icons'
@@ -9,10 +10,6 @@ import { useAuth } from '../data/AuthContext'
 import { MODE_COPY, setMode, useMode } from '../data/mode'
 import { TIER_COLOR, tierFor } from '../engine/score'
 
-function isStandalone() {
-  return window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
-}
-
 /** Everything fits one phone screen: the layout stretches between the sign and the footer line. */
 export function Home() {
   const attempts = useAttempts()
@@ -20,11 +17,22 @@ export function Home() {
   const { session, cloudEnabled } = useAuth()
   const mode = useMode()
   const copy = MODE_COPY[mode]
-  const [showInstall, setShowInstall] = useState(false)
+  const [shared, setShared] = useState<string | null>(null)
 
-  useEffect(() => {
-    setShowInstall(!isStandalone() && /iPhone|iPad|Android/i.test(navigator.userAgent))
-  }, [])
+  async function shareApp() {
+    const text = mode === 'sparkling' ? 'Split The G, sparkling edition: one sip, land the line on the G. Try it:' : 'Split The G: one sip, land the line on the G. Try it:'
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Split The G', text, url: APP_URL })
+        return
+      }
+      await navigator.clipboard.writeText(`${text} ${APP_URL}`)
+      setShared('Link copied')
+      setTimeout(() => setShared(null), 2000)
+    } catch {
+      /* cancelled */
+    }
+  }
 
   const today = dayKey(new Date().toISOString())
   const todays = attempts.filter((a) => dayKey(a.createdAt) === today)
@@ -99,12 +107,12 @@ export function Home() {
 
       <AdSlot slot="home" />
 
+      <div className="text-center">
+        <button onClick={shareApp} className="font-display text-gold uppercase tracking-[0.18em] text-sm underline-offset-4 hover:underline">
+          {shared ?? 'Share with friends'}
+        </button>
+      </div>
       <p className="text-[10px] text-cream/40 text-center leading-snug">
-        {showInstall && (
-          <>
-            <span className="text-gold/80">Add to home screen</span> for full screen: Share, then Add to Home Screen.{' '}
-          </>
-        )}
         {mode === 'pub' ? (
           'Independent fan project. Not affiliated with any brewery.'
         ) : (

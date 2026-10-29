@@ -144,11 +144,33 @@ export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions
   const lum = rowLuminance(img, { x0, x1, y0: roi.y0, y1: roi.y1 })
   const nearI = nearEdge(lum, bestI, flank, Math.max(3, Math.round(n * (opts.maxBandFraction ?? 0.1))))
 
+  // Sub-row position of the edge between rows nearI-1 and nearI: weight by
+  // how sharply luminance changes across the neighbouring row pairs.
+  const y = Math.floor(roi.y0) + subRowEdge(lum, nearI)
+
   return {
-    y: Math.floor(roi.y0) + nearI,
+    y,
     step: best,
     confidence: Math.min(1, best / 80),
   }
+}
+
+/**
+ * Refine an edge located between rows i-1 and i to sub-row precision using
+ * the luminance differences of the three row pairs around it (parabolic fit
+ * on the gradient magnitude). Returns a value in [i-1, i+1].
+ */
+export function subRowEdge(lum: Float32Array, i: number): number {
+  const n = lum.length
+  if (i <= 1 || i >= n - 1) return i
+  const g = (k: number) => Math.abs(lum[k] - lum[k - 1])
+  const a = g(i - 1)
+  const b = g(i)
+  const c = g(i + 1)
+  const denom = a - 2 * b + c
+  if (denom >= 0 || b < a || b < c) return i
+  const offset = (0.5 * (a - c)) / denom
+  return i + Math.max(-1, Math.min(1, offset))
 }
 
 /**

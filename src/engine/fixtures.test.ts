@@ -1,112 +1,52 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PNG } from 'pngjs'
-import { detectLiquidLine, rowLuminance, topCandidates, type PixelSource } from './detect'
-import { detectGlass } from './frame'
-import { glassRoi } from './roi'
+import type { PixelSource } from './detect'
+import { evaluate, formatReport, type Truth } from './harness'
+import { SAMPLE_WIDTH } from './roi'
 
 /**
- * Real-photo regression tests. Fixtures are personal photos kept out of git
- * (fixtures/ is ignored), so each test is skipped when its file is missing.
+ * Real-photo regression tests. Each fixture is a PNG plus a JSON file with
+ * hand-measured ground truth (full-resolution pixels). Fixtures are personal
+ * photos kept out of git (fixtures/ is ignored), so the suite skips when the
+ * folder is empty.
+ *
+ * Pass criteria, in percent of glass height: the final reading (line as a
+ * fraction of the glass) within 1%, and the line itself within 1%.
  */
+
+const DIR = 'fixtures'
+const TOLERANCE = 1.0
 
 function loadPng(path: string): PixelSource {
   const png = PNG.sync.read(readFileSync(path))
   return { data: png.data, width: png.width, height: png.height }
 }
 
-/** Box-filter downscale to `targetW` wide, matching what the sampler does. */
-function downscale(img: PixelSource, targetW: number): PixelSource {
-  const scale = targetW / img.width
-  const w = targetW
-  const h = Math.round(img.height * scale)
-  const out = new Uint8ClampedArray(w * h * 4)
-  for (let y = 0; y < h; y++) {
-    const sy0 = Math.floor(y / scale)
-    const sy1 = Math.max(sy0 + 1, Math.floor((y + 1) / scale))
-    for (let x = 0; x < w; x++) {
-      const sx0 = Math.floor(x / scale)
-      const sx1 = Math.max(sx0 + 1, Math.floor((x + 1) / scale))
-      let r = 0
-      let g = 0
-      let b = 0
-      let n = 0
-      for (let sy = sy0; sy < sy1 && sy < img.height; sy++) {
-        for (let sx = sx0; sx < sx1 && sx < img.width; sx++) {
-          const i = (sy * img.width + sx) * 4
-          r += img.data[i]
-          g += img.data[i + 1]
-          b += img.data[i + 2]
-          n++
-        }
-      }
-      const o = (y * w + x) * 4
-      out[o] = r / n
-      out[o + 1] = g / n
-      out[o + 2] = b / n
-      out[o + 3] = 255
-    }
+const fixtures = existsSync(DIR)
+  ? readdirSync(DIR)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => {
+        const meta = JSON.parse(readFileSync(join(DIR, f), 'utf8')) as { image: string; truth: Truth }
+        return { name: f.replace(/\.json$/, ''), image: join(DIR, meta.image), truth: meta.truth }
+      })
+      .filter((f) => existsSync(f.image))
+  : []
+
+describe('real-photo accuracy', () => {
+  if (fixtures.length === 0) {
+    it.skip('no fixtures present', () => undefined)
+    return
   }
-  return { data: out, width: w, height: h }
-}
-
-const SAMPLE_WIDTH = 240
-
-describe('fixture: clear water in a mug (phone photo)', () => {
-  const path = 'fixtures/water-mug.png'
-  const run = existsSync(path) ? it : it.skip
-
-  run('finds the water surface, not the foot of the glass', () => {
-    const full = loadPng(path)
-    const img = downscale(full, SAMPLE_WIDTH)
-    const s = img.width / full.width
-    // Where the user left the RIM/BASE guides (app defaults on a 1090x1500 frame)
-    const rimY = 300 * s
-    const baseY = 1275 * s
-    const waterY = 505 * s
-    const roi = glassRoi(img.width, rimY, baseY)
-    const cands = topCandidates(img, roi, 6)
-    console.log('water-mug candidates (expected ~%d):', waterY.toFixed(1), cands.map((c) => `${c.y}:${c.score.toFixed(1)}`).join('  '))
-    const d = detectLiquidLine(img, roi)
-    const lum = rowLuminance(img, roi)
-    const y0 = Math.floor(roi.y0)
-    console.log(
-      '  luminance rows 104-122:',
-      Array.from({ length: 19 }, (_, k) => `${104 + k}:${lum[104 + k - y0].toFixed(0)}`).join(' '),
-    )
-    expect(d).not.toBeNull()
-    // detector reports the near (bottom) edge of the meniscus band
-    expect(Math.abs(d!.y - waterY)).toBeLessThanOrEqual(5)
-  })
-
-  run('frames the glass automatically: walls, front rim and base', () => {
-    const full = loadPng(path)
-    const img = downscale(full, SAMPLE_WIDTH)
-    const s = img.width / full.width
-    const g = detectGlass(img, {
-      debug: ({ lefts, rights }) => {
-        const fmt = (t: { x: number; strength: number; top: number; bottom: number }) =>
-          `x=${(t.x / s).toFixed(0)} s=${t.strength.toFixed(0)} ${(t.top / s).toFixed(0)}-${(t.bottom / s).toFixed(0)}`
-        console.log('  left candidates:', lefts.map(fmt).join(' | '))
-        console.log('  right candidates:', rights.map(fmt).join(' | '))
-      },
+  for (const fx of fixtures) {
+    it(`${fx.name}: reading within ${TOLERANCE}% of glass height`, () => {
+      const r = evaluate(loadPng(fx.image), fx.truth, SAMPLE_WIDTH)
+      console.log(formatReport(fx.name, r))
+      expect(r.glass, 'glass not found').not.toBeNull()
+      expect(r.lineErr, 'line not found').not.toBeNull()
+      expect(Math.abs(r.lineErr!)).toBeLessThanOrEqual(TOLERANCE)
+      expect(Math.abs(r.fractionErr!)).toBeLessThanOrEqual(TOLERANCE)
     })
-    console.log(
-      'water-mug frame:',
-      g && `left=${(g.leftX / s).toFixed(0)} right=${(g.rightX / s).toFixed(0)} rimTop=${(g.rimTopY / s).toFixed(0)} rim=${(g.rimY / s).toFixed(0)} base=${(g.baseY / s).toFixed(0)} conf=${g.confidence.toFixed(2)}`,
-      '(expected ~ left=300 right=790 rim=300 base=1230)',
-    )
-    expect(g).not.toBeNull()
-    expect(Math.abs(g!.leftX / s - 300)).toBeLessThanOrEqual(25)
-    expect(Math.abs(g!.rightX / s - 790)).toBeLessThanOrEqual(25)
-    expect(Math.abs(g!.rimY / s - 300)).toBeLessThanOrEqual(30)
-    expect(Math.abs(g!.baseY / s - 1230)).toBeLessThanOrEqual(40)
-
-    // End-to-end: liquid line relative to the auto frame, read at the front.
-    const roi = glassRoi(img.width, g!.rimY, g!.baseY, (g!.leftX + g!.rightX) / 2)
-    const d = detectLiquidLine(img, roi)!
-    const frac = (d.y - g!.rimY) / (g!.baseY - g!.rimY)
-    console.log('water-mug line: y=%d (near edge expected ~%d) fraction=%s', d.y, (515 * s).toFixed(1), frac.toFixed(3))
-    expect(Math.abs(d.y - 515 * s)).toBeLessThanOrEqual(3)
-  })
+  }
 })

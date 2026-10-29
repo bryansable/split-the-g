@@ -2,19 +2,24 @@
  * Automatic glass framing: find the glass's side walls, rim and base in a
  * downscaled frame so the user does not have to line anything up.
  *
- * Method (classical, no ML, runs in a few ms on a 240px-wide frame):
- *   1. Horizontal-gradient magnitude per pixel (vertical edges).
- *   2. In a band around mid-height, score each column by its vertical-edge
- *      energy and pick the strongest wall candidate on each side of centre,
- *      preferring the one nearest the centre so a mug handle or a window
- *      frame further out does not win.
- *   3. Track each wall edge row by row upwards and downwards, allowing a few
- *      pixels of sideways drift per row for curved (tulip) glasses, until
- *      the edge disappears. Where the walls stop is the rim and the base.
- *   4. The rim is an ellipse seen from slightly above; the user reads the
- *      level against the FRONT of the glass, so the rim row is refined to the
- *      lowest strong horizontal edge in the top slice of the glass (the near
- *      arc of the rim).
+ * Method (classical, no ML, a few ms on a 320px-wide frame):
+ *   1. Horizontal-gradient magnitude per pixel (vertical edges) and vertical-
+ *      gradient magnitude (horizontal edges).
+ *   2. In a band around mid-height, score each column by vertical-edge energy
+ *      and collect wall candidates on each side of centre.
+ *   3. For each candidate pair, build a per-row "wall presence" profile from
+ *      the edge energy inside a FIXED window around each wall column. Unlike
+ *      a row-by-row tracker it cannot wander onto a reflection or a stripe
+ *      inside the glass. Extend from mid-height up and down while at least
+ *      one wall stays present in a sliding window; that gives the glass's
+ *      vertical extent. Score pairs by run length, how often both walls agree,
+ *      and edge strength.
+ *   4. Rim: the rim is an ellipse seen from slightly above. Find the strongest
+ *      horizontal edge near the top of the run (the rim ring), then the lowest
+ *      strong edge just below it (the near arc), which is where the user reads
+ *      the level. Base: the strongest horizontal edge near the bottom of the
+ *      run (the foot meeting the table), which is immune to the run overshooting
+ *      into a reflection.
  */
 import type { PixelSource } from './detect'
 
@@ -31,13 +36,25 @@ export interface GlassDetection {
   confidence: number
 }
 
+export interface WallTrack {
+  x: number
+  strength: number
+  /** Rows where the wall's presence run starts and ends. */
+  top: number
+  bottom: number
+  /** Fraction of rows in the run where this wall is present. */
+  fill: number
+}
+
 export interface FrameOptions {
   /** Minimum column edge strength to count as a wall. */
   minWall?: number
-  /** Sideways drift allowed per row while tracking a wall, px. */
-  drift?: number
+  /** Half-width of the presence window around a wall column, fraction of frame width. */
+  window?: number
+  /** Fraction of a wall's mid-height strength a row must reach to count as present. */
+  presence?: number
   /** Receives the wall candidates considered (tests and tuning). */
-  debug?: (info: { lefts: WallTrack[]; rights: WallTrack[] }) => void
+  debug?: (info: { lefts: WallTrack[]; rights: WallTrack[]; chosen?: { l: WallTrack; r: WallTrack; top: number; bottom: number } }) => void
 }
 
 export function toGray(img: PixelSource): Float32Array {
@@ -61,38 +78,31 @@ export function horizontalGradient(g: Float32Array, w: number, h: number): Float
   return gx
 }
 
-export interface WallTrack {
-  x: number
-  strength: number
-  /** Rows where the tracked edge starts and ends. */
-  top: number
-  bottom: number
+/** |I(y+1) - I(y-1)| for every pixel; zero on the top and bottom rows. */
+export function verticalGradient(g: Float32Array, w: number, h: number): Float32Array {
+  const gy = new Float32Array(w * h)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 0; x < w; x++) {
+      gy[y * w + x] = Math.abs(g[(y + 1) * w + x] - g[(y - 1) * w + x])
+    }
+  }
+  return gy
 }
 
-/**
- * Local maxima of the column profile in [x0, x1) that reach at least a third
- * of the range's peak, strongest first, each tracked up and down.
- */
-function wallCandidates(
-  gx: Float32Array,
-  w: number,
-  h: number,
-  col: Float32Array,
-  x0: number,
-  x1: number,
-  midY: number,
-  minWall: number,
-  drift: number,
-  limit = 6,
-): WallTrack[] {
+interface Pick {
+  x: number
+  strength: number
+}
+
+/** Local maxima of the column profile in [x0, x1), strongest first, plateaus collapsed. */
+function columnPeaks(col: Float32Array, x0: number, x1: number, minWall: number, limit: number): Pick[] {
   let peak = 0
   for (let x = x0; x < x1; x++) peak = Math.max(peak, col[x])
   if (peak < minWall) return []
-  const picks: { x: number; strength: number }[] = []
+  const picks: Pick[] = []
   for (let x = x0 + 1; x < x1 - 1; x++) {
     const v = col[x]
     if (v < peak * 0.33 || v < minWall || v < col[x - 1] || v < col[x + 1]) continue
-    // one pick per plateau / per 4px: a thick edge must not crowd out others
     const prev = picks[picks.length - 1]
     if (prev && x - prev.x <= 3) {
       if (v > prev.strength) picks[picks.length - 1] = { x, strength: v }
@@ -101,67 +111,59 @@ function wallCandidates(
     picks.push({ x, strength: v })
   }
   picks.sort((a, b) => b.strength - a.strength)
-  return picks.slice(0, limit).map((p) => ({ ...p, ...trackWall(gx, w, h, p.x, midY, p.strength, drift) }))
+  return picks.slice(0, limit)
+}
+
+/** Per-row max edge energy inside a fixed window around column x. */
+function presenceProfile(gx: Float32Array, w: number, h: number, x: number, win: number): Float32Array {
+  const out = new Float32Array(h)
+  const a = Math.max(1, x - win)
+  const b = Math.min(w - 2, x + win)
+  for (let y = 0; y < h; y++) {
+    let m = 0
+    const row = y * w
+    for (let xx = a; xx <= b; xx++) if (gx[row + xx] > m) m = gx[row + xx]
+    out[y] = m
+  }
+  return out
 }
 
 /**
- * Score a left/right wall pair: long shared vertical run, ends that agree,
- * decent edge strength. The real walls of a glass are symmetric and run from
- * rim to base; reflections inside the glass, a mug handle, or a background
- * bar fail on length or on agreement.
+ * Extend from y0 in direction dir while, within a sliding window of `k`
+ * rows ahead, at least half the rows have a wall present. Returns the last
+ * present row reached.
  */
-export function pairScore(l: WallTrack, r: WallTrack, w: number, h: number): number {
-  const top = Math.max(l.top, r.top)
-  const bottom = Math.min(l.bottom, r.bottom)
-  const run = bottom - top
-  if (run < h * 0.15 || r.x - l.x < w * 0.2) return 0
-  const agree = 1 - Math.min(1, (Math.abs(l.top - r.top) + Math.abs(l.bottom - r.bottom)) / (h * 0.2))
-  const strength = Math.min(l.strength, r.strength)
-  return (run / h) * (0.4 + 0.6 * agree) * Math.sqrt(strength)
-}
-
-/** Follow a vertical edge from (x0, y0) up and down; return the rows where it ends. */
-function trackWall(gx: Float32Array, w: number, h: number, x0: number, y0: number, strength: number, drift: number) {
-  const thr = Math.max(6, strength * 0.35)
-  const maxMiss = Math.max(3, Math.round(h * 0.04))
-
-  function run(dir: -1 | 1): number {
-    let x = x0
-    let miss = 0
-    let last = y0
-    for (let y = y0 + dir; y >= 0 && y < h; y += dir) {
-      let bestX = x
-      let bestV = -1
-      for (let dx = -drift; dx <= drift; dx++) {
-        const xx = x + dx
-        if (xx < 1 || xx >= w - 1) continue
-        const v = gx[y * w + xx]
-        if (v > bestV) {
-          bestV = v
-          bestX = xx
-        }
-      }
-      if (bestV >= thr) {
-        x = bestX
-        last = y
-        miss = 0
-      } else if (++miss > maxMiss) {
-        break
+function extend(present: Uint8Array, y0: number, dir: -1 | 1, k: number): number {
+  const n = present.length
+  let last = y0
+  let y = y0
+  while (true) {
+    let count = 0
+    let lastHit = -1
+    for (let j = 1; j <= k; j++) {
+      const yy = y + dir * j
+      if (yy < 0 || yy >= n) break
+      if (present[yy]) {
+        count++
+        lastHit = yy
       }
     }
-    return last
+    if (count * 2 < k || lastHit < 0) break
+    last = lastHit
+    y = lastHit
   }
-
-  return { top: run(-1), bottom: run(1) }
+  return last
 }
 
 export function detectGlass(img: PixelSource, opts: FrameOptions = {}): GlassDetection | null {
   const { width: w, height: h } = img
   if (w < 40 || h < 40) return null
   const minWall = opts.minWall ?? 8
-  const drift = opts.drift ?? 3
+  const win = Math.max(2, Math.round((opts.window ?? 0.035) * w))
+  const presenceFrac = opts.presence ?? 0.4
   const g = toGray(img)
   const gx = horizontalGradient(g, w, h)
+  const gy = verticalGradient(g, w, h)
 
   // Column edge energy across the middle band of the frame.
   const y0 = Math.floor(h * 0.35)
@@ -177,83 +179,174 @@ export function detectGlass(img: PixelSource, opts: FrameOptions = {}): GlassDet
   }
 
   const midY = Math.floor((y0 + y1) / 2)
-  const lefts = wallCandidates(gx, w, h, col, Math.floor(w * 0.03), Math.floor(w * 0.47), midY, minWall, drift)
-  const rights = wallCandidates(gx, w, h, col, Math.ceil(w * 0.53), Math.floor(w * 0.97), midY, minWall, drift)
-  if (opts.debug) opts.debug({ lefts, rights })
+  const k = Math.max(3, Math.round(h * 0.08))
+  const leftPicks = columnPeaks(col, Math.floor(w * 0.03), Math.floor(w * 0.47), minWall, 6)
+  const rightPicks = columnPeaks(col, Math.ceil(w * 0.53), Math.floor(w * 0.97), minWall, 6)
+  if (leftPicks.length === 0 || rightPicks.length === 0) return null
 
-  let left: WallTrack | null = null
-  let right: WallTrack | null = null
-  let bestPair = 0
-  for (const l of lefts) {
-    for (const r of rights) {
-      const s = pairScore(l, r, w, h)
-      if (s > bestPair) {
-        bestPair = s
-        left = l
-        right = r
+  // Presence per candidate (computed once each).
+  const profiles = new Map<number, Uint8Array>()
+  const presentFor = (p: Pick): Uint8Array => {
+    let pr = profiles.get(p.x)
+    if (!pr) {
+      const prof = presenceProfile(gx, w, h, p.x, win)
+      const thr = Math.max(5, p.strength * presenceFrac)
+      pr = new Uint8Array(h)
+      for (let y = 0; y < h; y++) pr[y] = prof[y] >= thr ? 1 : 0
+      profiles.set(p.x, pr)
+    }
+    return pr
+  }
+
+  const toTrack = (p: Pick, pr: Uint8Array, top: number, bottom: number): WallTrack => {
+    let hits = 0
+    for (let y = top; y <= bottom; y++) hits += pr[y]
+    return { x: p.x, strength: p.strength, top, bottom, fill: hits / Math.max(1, bottom - top + 1) }
+  }
+
+  let best: { l: WallTrack; r: WallTrack; top: number; bottom: number; score: number } | null = null
+  const lefts: WallTrack[] = []
+  const rights: WallTrack[] = []
+  for (const lp of leftPicks) {
+    for (const rp of rightPicks) {
+      if (rp.x - lp.x < w * 0.2) continue
+      const pl = presentFor(lp)
+      const pr = presentFor(rp)
+      // either wall present
+      const either = new Uint8Array(h)
+      let bothCount = 0
+      let eitherCount = 0
+      for (let y = 0; y < h; y++) either[y] = pl[y] | pr[y]
+      if (!either[midY] && !either[midY - 1] && !either[midY + 1]) continue
+      const top = extend(either, midY, -1, k)
+      const bottom = extend(either, midY, 1, k)
+      for (let y = top; y <= bottom; y++) {
+        if (pl[y] && pr[y]) bothCount++
+        if (either[y]) eitherCount++
       }
+      const run = bottom - top
+      if (run < h * 0.15) continue
+      const both = bothCount / Math.max(1, eitherCount)
+      const strength = Math.min(lp.strength, rp.strength)
+      // Rows where both walls agree are what make a glass; a lone full-height
+      // background edge paired with one wall scores no better than the wall alone.
+      const score = (bothCount / h) * (0.5 + 0.5 * both) * Math.sqrt(strength)
+      const lt = toTrack(lp, pl, top, bottom)
+      const rt = toTrack(rp, pr, top, bottom)
+      lefts.push(lt)
+      rights.push(rt)
+      if (!best || score > best.score) best = { l: lt, r: rt, top, bottom, score }
     }
   }
-  if (!left || !right) return null
-  const L = left
-  const R = right
+  if (opts.debug) opts.debug({ lefts, rights, chosen: best ? { l: best.l, r: best.r, top: best.top, bottom: best.bottom } : undefined })
+  if (!best) return null
 
-  // Conservative: a wall that runs on along a background edge is cut by the other.
-  const rimTop = Math.max(L.top, R.top)
-  const base = Math.min(L.bottom, R.bottom)
-  const H = base - rimTop
-  if (H < h * 0.15) return null
+  const { l, r, top, bottom } = best
+  const H0 = bottom - top
 
   // Horizontal-edge strength per row across the middle of the glass.
-  const span = right.x - left.x
-  const xa = Math.round(left.x + span * 0.3)
-  const xb = Math.round(left.x + span * 0.7)
-  const rowEdge = (y: number) => {
+  const span = r.x - l.x
+  const xa = Math.round(l.x + span * 0.3)
+  const xb = Math.round(l.x + span * 0.7)
+  const rowEdgeRaw = (y: number) => {
+    if (y < 1 || y >= h - 1) return 0
     let s = 0
-    for (let x = xa; x <= xb; x++) s += Math.abs(g[(y + 1) * w + x] - g[(y - 1) * w + x])
+    const row = y * w
+    for (let x = xa; x <= xb; x++) s += gy[row + x]
     return s / (xb - xa + 1)
   }
-
-  // Front rim: lowest strong horizontal edge in the top slice of the glass
-  // (the near arc of the rim ellipse).
-  const rimStart = Math.max(1, rimTop)
-  const rimEnd = Math.min(h - 2, rimTop + Math.max(3, Math.round(H * 0.1)))
-  const rimEdges: number[] = []
-  let peakEdge = 0
-  for (let y = rimStart; y <= rimEnd; y++) {
-    const v = rowEdge(y)
-    rimEdges.push(v)
-    peakEdge = Math.max(peakEdge, v)
+  // 3-row smoothing keeps the thresholds below resolution-independent.
+  const rowEdge = (y: number) => (rowEdgeRaw(y - 1) + rowEdgeRaw(y) + rowEdgeRaw(y + 1)) / 3
+  // Texture across the full glass width: glass and foot are busy, table is not.
+  const texture = (y: number) => {
+    if (y < 1 || y >= h - 1) return 0
+    let s = 0
+    const row = y * w
+    for (let x = l.x; x <= r.x; x++) s += gx[row + x] + gy[row + x]
+    return s / (r.x - l.x + 1)
   }
+  const textureBand = (a: number, b: number) => {
+    let s = 0
+    let n = 0
+    for (let y = Math.max(1, a); y <= Math.min(h - 2, b); y++) {
+      s += texture(y)
+      n++
+    }
+    return n ? s / n : 0
+  }
+
+  // Rim ring: strongest horizontal edge at the top of the run (allowing a
+  // little above, since the far arc can sit above where the walls start).
+  // The window stays short so the liquid line, lower down, cannot win.
+  const rimLo = Math.max(1, top - Math.round(H0 * 0.06))
+  const rimHi = Math.min(h - 2, top + Math.round(H0 * 0.12))
+  let rimTop = top
+  let rimPeak = 0
+  for (let y = rimLo; y <= rimHi; y++) {
+    const v = rowEdge(y)
+    if (v > rimPeak) {
+      rimPeak = v
+      rimTop = y
+    }
+  }
+  // Near arc: the lowest row within the rim band that still carries an edge.
+  // Seen from slightly above, the near arc is a much softer edge than the far
+  // arc (about a third as strong), hence the low relative threshold.
   let rimY = rimTop
-  for (let k = rimEdges.length - 1; k >= 0; k--) {
-    if (rimEdges[k] >= peakEdge * 0.5) {
-      rimY = rimStart + k
+  const bandEnd = Math.min(h - 2, rimTop + Math.max(2, Math.round(H0 * 0.08)))
+  for (let y = bandEnd; y >= rimTop; y--) {
+    if (rowEdge(y) >= rimPeak * 0.3) {
+      rimY = y
       break
     }
   }
 
-  // Front base: the walls stop where the foot starts to flare, so look a
-  // little below for the strongest horizontal edge (the bottom of the glass
-  // or its contact shadow).
-  const baseStart = Math.max(1, base - Math.round(H * 0.02))
-  const baseEnd = Math.min(h - 2, base + Math.round(H * 0.08))
-  let baseY = base
+  // Base: where the foot meets the table. The run may overshoot into a
+  // reflection on a glossy surface, so look for the lowest row in the bottom
+  // stretch that has a real horizontal edge AND a texture cliff below it:
+  // the glass and its foot are busy with highlights, the table is not, and a
+  // reflection never has the cliff.
+  const baseLo = Math.max(1, bottom - Math.round(H0 * 0.2))
+  const baseHi = Math.min(h - 2, bottom + Math.round(H0 * 0.03))
   let basePeak = 0
-  for (let y = baseStart; y <= baseEnd; y++) {
-    const v = rowEdge(y)
-    if (v > basePeak) {
-      basePeak = v
+  let texPeak = 0
+  for (let y = baseLo; y <= baseHi; y++) {
+    basePeak = Math.max(basePeak, rowEdge(y))
+    texPeak = Math.max(texPeak, texture(y))
+  }
+  const gap = Math.max(1, Math.round(H0 * 0.005))
+  const band = Math.max(2, Math.round(H0 * 0.02))
+  let baseY = -1
+  for (let y = baseHi; y >= baseLo; y--) {
+    if (rowEdge(y) < basePeak * 0.35) continue
+    const above = textureBand(y - gap - band, y - gap)
+    const below = textureBand(y + gap, y + gap + band)
+    // A reflection's end is also a cliff, but what sits above it is faint;
+    // the real foot is among the busiest rows in the stretch.
+    if (below < above * 0.6 && above >= texPeak * 0.35) {
       baseY = y
+      break
     }
   }
-  if (basePeak < 6) baseY = base
+  if (baseY < 0) {
+    // No cliff found (matte table, or the foot is cut off): fall back to the
+    // strongest edge in the stretch.
+    baseY = bottom
+    let best = 0
+    for (let y = baseLo; y <= baseHi; y++) {
+      const v = rowEdge(y)
+      if (v > best) {
+        best = v
+        baseY = y
+      }
+    }
+  }
 
-  // Confidence: wall agreement and relative strength.
-  const topAgree = 1 - Math.min(1, Math.abs(L.top - R.top) / (h * 0.1))
-  const botAgree = 1 - Math.min(1, Math.abs(L.bottom - R.bottom) / (h * 0.1))
-  const strength = Math.min(1, Math.min(left.strength, right.strength) / 30)
-  const confidence = Math.max(0, Math.min(1, 0.4 * topAgree + 0.3 * botAgree + 0.3 * strength))
+  if (baseY - rimY < h * 0.12) return null
 
-  return { rimY, rimTopY: rimTop, baseY, leftX: left.x, rightX: right.x, confidence }
+  const strength = Math.min(1, Math.min(l.strength, r.strength) / 30)
+  const both = Math.min(1, (l.fill + r.fill) / 2 / 0.7)
+  const confidence = Math.max(0, Math.min(1, 0.45 * both + 0.3 * strength + 0.25 * Math.min(1, H0 / (h * 0.5))))
+
+  return { rimY, rimTopY: rimTop, baseY, leftX: l.x, rightX: r.x, confidence }
 }

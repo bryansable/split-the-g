@@ -11,6 +11,14 @@ export const ROI_TOP = 0.05
 export const ROI_BOTTOM = 0.75
 export const ROI_HALF_WIDTH = 0.12
 
+/**
+ * Width the camera frame is downscaled to before analysis. At 320 a glass
+ * that fills most of a portrait frame is ~300 rows tall, so one row is about
+ * a third of a percent of glass height; sub-row peak interpolation gets the
+ * rest of the way to the 1% target.
+ */
+export const SAMPLE_WIDTH = 320
+
 export function glassRoi(imageWidth: number, rimY: number, baseY: number, centreX = imageWidth / 2): Roi {
   const h = baseY - rimY
   const halfW = imageWidth * ROI_HALF_WIDTH

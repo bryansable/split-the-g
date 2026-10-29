@@ -2,8 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate } from 'react-router-dom'
 import { Overlay, type Handle } from '../camera/Overlay'
 import { findGlass, findLine, grabSample, snapshot, type MediaSource } from '../camera/sampler'
+import { Stabilizer } from '../camera/stability'
 import { useCamera } from '../camera/useCamera'
 import { DEFAULT_FRAME, G_BAND, TARGET_FRACTION, clamp, fractionToY, lineFraction, type GlassFrame } from '../engine/glass'
+// (GlassFrame is also what the stabilizer hands back)
 import { TIER_COLOR, scoreAttempt } from '../engine/score'
 import { newId } from '../data/local'
 import type { GlassType } from '../data/types'
@@ -11,11 +13,12 @@ import { Photo, Pint } from '../components/icons'
 import { Button, Notice } from '../components/ui'
 import type { PendingResult } from './Result'
 
-const SAMPLE_MS = 250
+const SAMPLE_MS = 200
 /** Auto-frame results below this confidence are ignored. */
-const MIN_FRAME_CONFIDENCE = 0.35
+const MIN_FRAME_CONFIDENCE = 0.5
 
 type Walls = { left: number; right: number }
+type GlassState = 'none' | 'settling' | 'ready'
 
 export function Score() {
   const navigate = useNavigate()
@@ -30,11 +33,13 @@ export function Score() {
   const [frameFrac, setFrameFrac] = useState<GlassFrame>(DEFAULT_FRAME)
   const [walls, setWalls] = useState<Walls | null>(null)
   const [autoFrame, setAutoFrame] = useState(true)
-  const [frameFound, setFrameFound] = useState(false)
+  const [glassState, setGlassState] = useState<GlassState>('none')
   const [lineFrac, setLineFrac] = useState<number | null>(null)
+  const [locked, setLocked] = useState(false)
   const [autoDetect, setAutoDetect] = useState(true)
   const [glassType, setGlassType] = useState<GlassType>('plain')
   const [confidence, setConfidence] = useState(0)
+  const stabilizer = useRef(new Stabilizer())
 
   const usingPhoto = photoUrl !== null
   const camera = useCamera(videoRef, !usingPhoto)
@@ -72,10 +77,13 @@ export function Score() {
     return null
   }, [usingPhoto, photoReady, camera.status])
 
-  // Sampling loop: auto-frame the glass, then find the liquid line inside it.
+  // Sampling loop. Nothing is read until a glass has been found on several
+  // consecutive samples with a consistent frame; the line is then taken as a
+  // median over recent samples and the score is shown once it has settled.
   useEffect(() => {
     if (size.h === 0 || (!autoFrame && !autoDetect)) return
     sampleCanvas.current ??= document.createElement('canvas')
+    const stab = stabilizer.current
     const tick = () => {
       const src = getSource()
       if (!src) return
@@ -86,43 +94,51 @@ export function Score() {
       let centreX = wallsRef.current ? (wallsRef.current.left + wallsRef.current.right) / 2 : size.w / 2
       if (autoFrame) {
         const g = findGlass(s)
-        if (g && g.confidence >= MIN_FRAME_CONFIDENCE) {
-          const next: GlassFrame = {
-            rimY: clamp(g.frame.rimY, size.h * 0.02, size.h * 0.8),
-            baseY: clamp(g.frame.baseY, size.h * 0.2, size.h * 0.98),
+        stab.pushFrame(
+          g && g.confidence >= MIN_FRAME_CONFIDENCE
+            ? {
+                rimY: clamp(g.frame.rimY, size.h * 0.02, size.h * 0.8),
+                baseY: clamp(g.frame.baseY, size.h * 0.2, size.h * 0.98),
+                left: g.walls.left,
+                right: g.walls.right,
+              }
+            : null,
+        )
+        const sf = stab.frame()
+        if (!sf) {
+          // No stable glass yet: show nothing, and clear any stale reading.
+          setGlassState(stab.hasGlass ? 'settling' : 'none')
+          if (!stab.hasGlass) {
+            setWalls(null)
+            setLineFrac(null)
+            setLocked(false)
           }
-          // Photos are static: take the fix as is. Live video: smooth it.
-          const k = usingPhoto ? 1 : 0.5
-          frame = {
-            rimY: frame.rimY * (1 - k) + next.rimY * k,
-            baseY: frame.baseY * (1 - k) + next.baseY * k,
-          }
-          centreX = (g.walls.left + g.walls.right) / 2
-          setFrameFrac({ rimY: frame.rimY / size.h, baseY: frame.baseY / size.h })
-          setWalls((prev) =>
-            prev && !usingPhoto
-              ? { left: prev.left * (1 - k) + g.walls.left * k, right: prev.right * (1 - k) + g.walls.right * k }
-              : g.walls,
-          )
-          setFrameFound(true)
-        } else {
-          setFrameFound(false)
+          return
         }
+        frame = { rimY: sf.rimY, baseY: sf.baseY }
+        centreX = (sf.left + sf.right) / 2
+        setFrameFrac({ rimY: sf.rimY / size.h, baseY: sf.baseY / size.h })
+        setWalls({ left: sf.left, right: sf.right })
+        setGlassState('ready')
       }
 
       if (autoDetect) {
         const found = findLine(s, frame, centreX)
-        if (found) {
-          const next = found.y / size.h
-          setLineFrac((prev) => (prev === null || usingPhoto ? next : prev * 0.4 + next * 0.6))
-          setConfidence(found.detection.confidence)
+        stab.pushLine(found ? found.y : null)
+        const ln = stab.line(frame.baseY - frame.rimY)
+        if (ln) {
+          setLineFrac(ln.y / size.h)
+          setLocked(ln.locked)
+          setConfidence(found?.detection.confidence ?? 0)
         } else {
+          setLineFrac(null)
+          setLocked(false)
           setConfidence(0)
         }
       }
     }
     tick()
-    const id = window.setInterval(tick, usingPhoto ? 1000 : SAMPLE_MS)
+    const id = window.setInterval(tick, usingPhoto ? 300 : SAMPLE_MS)
     return () => window.clearInterval(id)
   }, [autoFrame, autoDetect, size, getSource, usingPhoto])
 
@@ -144,11 +160,13 @@ export function Score() {
   )
 
   function resetDetection() {
+    stabilizer.current.reset()
     setLineFrac(null)
+    setLocked(false)
     setAutoDetect(true)
     setAutoFrame(true)
     setWalls(null)
-    setFrameFound(false)
+    setGlassState('none')
   }
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -222,12 +240,18 @@ export function Score() {
 
   const cameraProblem = !usingPhoto && (camera.status === 'denied' || camera.status === 'unsupported' || camera.status === 'error')
   const ready = getSource() !== null
+  // A reading counts once the line has settled, or when the user placed it by hand.
+  const settled = !autoDetect || locked
+  const canCapture = ready && result !== null && settled
 
   let hint: { text: string; tone: 'info' | 'warn' } | null = null
   if (camera.status === 'starting' && !usingPhoto) hint = { text: 'Starting camera…', tone: 'info' }
-  else if (autoFrame && !frameFound) hint = { text: 'Point at the glass with the whole glass in view.', tone: 'info' }
-  else if (lineFrac === null) hint = { text: 'Glass found. Looking for the liquid line…', tone: 'info' }
+  else if (autoFrame && glassState === 'none') hint = { text: 'Point at a glass with the whole glass in view.', tone: 'info' }
+  else if (autoFrame && glassState === 'settling') hint = { text: 'Glass found. Hold still…', tone: 'info' }
+  else if (lineFrac === null) hint = { text: autoDetect ? 'Looking for the liquid line…' : 'Drag the line onto the liquid.', tone: 'info' }
+  else if (autoDetect && !locked) hint = { text: 'Settling…', tone: 'info' }
   else if (autoDetect && confidence < 0.4) hint = { text: 'Weak edge. Drag the line if it looks wrong.', tone: 'warn' }
+  else hint = { text: 'Locked. Tap the button to capture.', tone: 'info' }
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -250,7 +274,7 @@ export function Score() {
             height={size.h}
             frame={framePx}
             lineY={lineY}
-            result={result}
+            result={settled ? result : null}
             showGhost={glassType === 'plain'}
             autoDetect={autoDetect}
             walls={autoFrame ? walls : null}
@@ -274,7 +298,7 @@ export function Score() {
               Official glass
             </button>
           </div>
-          {result && (
+          {result && settled && (
             <div className="pointer-events-auto rounded-full bg-black/60 backdrop-blur px-3 py-1.5 text-sm font-semibold" style={{ color: TIER_COLOR[result.tier] }}>
               {result.score} · {result.title}
             </div>
@@ -314,7 +338,7 @@ export function Score() {
 
         <button
           onClick={capture}
-          disabled={!ready || !result}
+          disabled={!canCapture}
           aria-label="Capture"
           className="w-20 h-20 rounded-full bg-gold disabled:opacity-30 flex items-center justify-center shadow-[0_0_0_3px_#241710,0_0_0_4px_rgba(201,164,71,.5)] active:scale-95 transition"
         >

@@ -2,7 +2,7 @@ import { detectLiquidLine, type Detection } from '../engine/detect'
 import { detectGlass } from '../engine/frame'
 import { containerToMedia, coverTransform, mediaToContainer, type CoverTransform } from '../engine/mapping'
 import type { GlassFrame } from '../engine/glass'
-import { ROI_HALF_WIDTH, glassRoi } from '../engine/roi'
+import { ROI_HALF_WIDTH, SAMPLE_WIDTH, glassRoi } from '../engine/roi'
 
 export type MediaSource =
   | { kind: 'video'; el: HTMLVideoElement }
@@ -12,8 +12,6 @@ export function mediaSize(src: MediaSource): { w: number; h: number } {
   if (src.kind === 'video') return { w: src.el.videoWidth, h: src.el.videoHeight }
   return { w: src.el.naturalWidth, h: src.el.naturalHeight }
 }
-
-const SAMPLE_WIDTH = 240
 
 /** A downscaled copy of the current frame plus the maths to map it to the screen. */
 export interface Sample {
