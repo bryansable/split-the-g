@@ -24,11 +24,11 @@ export function AdSlot({ slot, className = '' }: { slot: keyof typeof AD_SLOTS; 
 
   if (!adsEnabled || !id) return null
   return (
-    <div className={`w-full overflow-hidden ${className}`} aria-label="Advertisement">
+    <div className={`ad-slot w-full overflow-hidden ${className}`} aria-label="Advertisement">
       <ins
         ref={ref}
         className="adsbygoogle block"
-        style={{ display: 'block', minHeight: 50 }}
+        style={{ display: 'block' }}
         data-ad-client={ADSENSE_CLIENT}
         data-ad-slot={id}
         data-ad-format="auto"

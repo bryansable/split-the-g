@@ -110,6 +110,18 @@ body {
     margin-left: 4px;
   }
 }
+/*
+ * Ad slots take no space until Google actually fills them. AdSense marks the
+ * <ins> with data-ad-status once it has decided; "unfilled" (or no decision
+ * yet, before approval) collapses to nothing.
+ */
+.ad-slot ins.adsbygoogle:not([data-ad-status='filled']) {
+  display: none !important;
+}
+.ad-slot:has(ins.adsbygoogle[data-ad-status='filled']) {
+  margin-top: 0.75rem;
+}
+
 /* Page-load curtain (see components/Intro.tsx): bottom edge lifts away */
 .intro {
   position: fixed;
