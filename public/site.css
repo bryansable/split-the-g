@@ -1,0 +1,334 @@
+/*
+ * Styles for the crawlable side of the site: the static pages, and the text,
+ * nav and footer around the app on the home page. Plain CSS, no build step, so
+ * the static pages load it without the app bundle. Colours match src/index.css;
+ * on the home page the app's sparkling edition recolours these too.
+ */
+:root {
+  --ink: var(--color-ink, #0d0906);
+  --stout: var(--color-stout, #140d09);
+  --wood: var(--color-wood, #241710);
+  --cream: var(--color-cream, #f3e6c9);
+  --gold: var(--color-gold, #c9a447);
+  --display: 'Cinzel', Georgia, 'Times New Roman', serif;
+  --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --gutter: 16px;
+}
+
+html {
+  background: var(--ink);
+}
+body.site-page,
+body.site-home {
+  margin: 0;
+  min-height: 100%;
+  background-color: var(--ink);
+  color: var(--cream);
+  font-family: var(--body);
+  -webkit-text-size-adjust: 100%;
+}
+body.site-page {
+  background-image: radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 60%);
+}
+
+/* ---- header and footer ---- */
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 14px var(--gutter);
+  background: var(--wood);
+  border-bottom: 2px solid;
+  border-image: linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold) 70%, transparent) 1;
+}
+.site-brand {
+  font-family: var(--display);
+  color: var(--gold);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-g {
+  display: inline-block;
+  border: 2px solid var(--gold);
+  border-radius: 999px;
+  padding: 0 6px;
+  letter-spacing: 0;
+  margin-right: 4px;
+}
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.site-nav a {
+  color: color-mix(in srgb, var(--cream) 78%, transparent);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 0;
+}
+.site-nav a:hover,
+.site-nav a[aria-current='page'] {
+  color: var(--gold);
+}
+
+.site-footer {
+  padding: 28px var(--gutter) 40px;
+  border-top: 1px solid color-mix(in srgb, var(--gold) 25%, transparent);
+  color: color-mix(in srgb, var(--cream) 50%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 12px;
+}
+.site-footer a {
+  color: color-mix(in srgb, var(--cream) 78%, transparent);
+}
+.site-footer p {
+  margin: 6px 0;
+}
+
+/* ---- reading column ---- */
+.site-main {
+  padding: 28px var(--gutter) 40px;
+  max-width: 720px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+.site-page .site-header > *,
+.site-page .site-footer > * {
+  max-width: 720px;
+}
+.site-page .site-header,
+.site-page .site-footer {
+  padding-left: max(var(--gutter), calc((100% - 720px) / 2));
+  padding-right: max(var(--gutter), calc((100% - 720px) / 2));
+}
+
+.prose {
+  font-size: 17px;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--cream) 88%, transparent);
+  overflow-wrap: break-word;
+}
+.prose h1 {
+  font-family: var(--display);
+  color: var(--cream);
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.15;
+  margin: 0 0 8px;
+}
+.prose h2 {
+  font-family: var(--display);
+  color: var(--gold);
+  font-size: 22px;
+  line-height: 1.3;
+  margin: 36px 0 10px;
+}
+.prose h3 {
+  color: var(--cream);
+  font-size: 18px;
+  margin: 24px 0 6px;
+}
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 16px;
+}
+.prose li {
+  margin-bottom: 8px;
+}
+.prose a,
+.crumbs a,
+.more-link a {
+  color: var(--gold);
+  text-underline-offset: 3px;
+}
+.prose blockquote {
+  margin: 20px 0;
+  padding: 4px 18px;
+  border-left: 3px solid var(--gold);
+  color: var(--cream);
+  font-style: italic;
+}
+.prose strong {
+  color: var(--cream);
+}
+.byline {
+  color: color-mix(in srgb, var(--cream) 50%, transparent);
+  font-size: 14px;
+  margin-bottom: 24px !important;
+}
+.crumbs {
+  font-size: 14px;
+  color: color-mix(in srgb, var(--cream) 50%, transparent);
+  margin-bottom: 18px;
+}
+
+/* ---- post lists ---- */
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.post-list li {
+  border-top: 1px solid color-mix(in srgb, var(--gold) 20%, transparent);
+}
+.post-list li:last-child {
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 20%, transparent);
+}
+.post-list a {
+  display: block;
+  padding: 16px 0;
+  text-decoration: none;
+}
+.post-title {
+  display: block;
+  font-family: var(--display);
+  color: var(--gold);
+  font-size: 18px;
+  line-height: 1.35;
+}
+.post-desc {
+  display: block;
+  color: color-mix(in srgb, var(--cream) 65%, transparent);
+  font-size: 15px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.more h2 {
+  font-family: var(--display);
+  color: var(--gold);
+  font-size: 20px;
+  margin: 40px 0 0;
+}
+.more-link {
+  margin: 16px 0 0;
+}
+
+/* ---- call to action ---- */
+.cta {
+  margin: 32px 0;
+  padding: 20px;
+  border: 2px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  border-radius: 10px;
+  background: var(--stout);
+  text-align: center;
+  color: color-mix(in srgb, var(--cream) 80%, transparent);
+  line-height: 1.55;
+}
+.cta p {
+  margin: 0 0 14px;
+}
+.cta-title {
+  font-family: var(--display);
+  color: var(--cream) !important;
+  font-size: 22px;
+  margin-bottom: 6px !important;
+}
+.button {
+  display: inline-block;
+  padding: 12px 26px;
+  border-radius: 8px;
+  background: var(--gold);
+  color: var(--ink) !important;
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  font-size: 15px;
+}
+.contact-email {
+  font-size: 20px;
+  font-family: var(--display);
+}
+
+/* ---- home page: the app plus the text around it ---- */
+.app-fallback {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--cream);
+}
+
+/* Phones: the app fills the first screen exactly as before; the text follows below. */
+body.site-home {
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+}
+body.site-home #root {
+  order: 0;
+  height: 100dvh;
+  flex: none;
+}
+body.site-home .site-header {
+  order: 1;
+}
+body.site-home .site-main {
+  order: 2;
+}
+body.site-home .site-footer {
+  order: 3;
+}
+/* Inside the app (any screen but home) on a phone, or once installed, show the app alone. */
+@media (max-width: 1023px) {
+  html[data-route]:not([data-route='/']) body.site-home > :not(#root) {
+    display: none;
+  }
+}
+@media (display-mode: standalone) {
+  body.site-home > :not(#root) {
+    display: none;
+  }
+}
+
+/*
+ * Wide screens: the app sits in a phone-width column on the left, fixed to the
+ * viewport, and the nav, text and footer scroll beside it.
+ */
+@media (min-width: 1024px) {
+  body.site-home {
+    display: grid;
+    grid-template-columns: 430px minmax(0, 720px);
+    grid-template-rows: auto 1fr auto;
+    justify-content: center;
+    column-gap: clamp(28px, 4vw, 56px);
+    padding-right: 24px;
+  }
+  body.site-home #root {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    border-left: 1px solid color-mix(in srgb, var(--gold) 25%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--gold) 25%, transparent);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  }
+  body.site-home .site-header,
+  body.site-home .site-main,
+  body.site-home .site-footer {
+    grid-column: 2;
+  }
+  body.site-home .site-header {
+    background: transparent;
+    padding: 22px 0 14px;
+  }
+  body.site-home .site-main {
+    padding: 28px 0 40px;
+    margin: 0;
+  }
+  body.site-home .site-footer {
+    padding: 28px 0 40px;
+  }
+}

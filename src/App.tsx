@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { MODE_COPY, useMode } from './data/mode'
 import { Challenge } from './screens/Challenge'
 import { HowToPlay } from './screens/HowToPlay'
-import { Privacy } from './screens/Privacy'
 import { AuthProvider, useAuth } from './data/AuthContext'
 import { Contest } from './screens/Contest'
 import { Friends } from './screens/Friends'
@@ -32,6 +31,11 @@ function Shell() {
   const tabs = allTabs.filter((t) => cloudEnabled || !t.cloud)
   const [ageOk, setAgeOk] = useState(ageConfirmed)
   const mode = useMode()
+
+  // The page around the app (nav, articles, footer) shows only beside the home screen on phones; see public/site.css.
+  useEffect(() => {
+    document.documentElement.dataset.route = pathname
+  }, [pathname])
 
   // The edition colours the whole app through CSS variables on <html>.
   useEffect(() => {
@@ -68,7 +72,7 @@ function Shell() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/challenge" element={<Challenge />} />
           <Route path="/how-to-play" element={<HowToPlay />} />
-          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/privacy" element={<StaticPage path="/privacy" />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
@@ -89,6 +93,12 @@ function Shell() {
       </nav>
     </div>
   )
+}
+
+/** Old in-app links (#/privacy) now live as real pages. */
+function StaticPage({ path }: { path: string }) {
+  useEffect(() => window.location.replace(path), [path])
+  return null
 }
 
 export default function App() {

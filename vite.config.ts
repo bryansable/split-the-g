@@ -3,6 +3,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sitePages } from './site/plugin'
 
 /**
  * AdSense needs an ads.txt at the domain root naming the publisher. Emit it
@@ -58,6 +59,7 @@ export default defineConfig(({ mode }) => {
     tailwindcss(),
     adsTxt(env.VITE_ADSENSE_CLIENT),
     adsenseHead(env.VITE_ADSENSE_CLIENT),
+    sitePages(env.VITE_ADSENSE_CLIENT),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
@@ -76,6 +78,8 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
+        // Only the app itself falls back to index.html; /blog, /privacy and the rest are real pages.
+        navigateFallbackAllowlist: [/^\/$/, /^\/index\.html$/],
         // keep the display font available offline once it has been seen
         runtimeCaching: [
           {

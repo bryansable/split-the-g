@@ -128,9 +128,13 @@ export function Home() {
           How to play
         </Link>{' '}
         ·{' '}
-        <Link to="/privacy" className="text-gold/80 underline-offset-2 hover:underline">
+        <a href="/blog" className="text-gold/80 underline-offset-2 hover:underline">
+          Blog
+        </a>{' '}
+        ·{' '}
+        <a href="/privacy" className="text-gold/80 underline-offset-2 hover:underline">
           Privacy
-        </Link>
+        </a>
       </p>
     </div>
   )

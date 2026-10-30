@@ -136,9 +136,15 @@ export function Profile() {
           <Link to="/how-to-play" className="text-gold underline-offset-4 hover:underline">
             How to play
           </Link>
-          <Link to="/privacy" className="text-gold underline-offset-4 hover:underline">
+          <a href="/blog" className="text-gold underline-offset-4 hover:underline">
+            Blog
+          </a>
+          <a href="/about" className="text-gold underline-offset-4 hover:underline">
+            About
+          </a>
+          <a href="/privacy" className="text-gold underline-offset-4 hover:underline">
             Privacy
-          </Link>
+          </a>
         </p>
       </div>
     </Page>
