@@ -1,4 +1,4 @@
-import type { ScoreResult } from '../engine/score'
+import type { ScoreResult, Tier } from '../engine/score'
 import { TIER_COLOR } from '../engine/score'
 import { getMode } from '../data/mode'
 
@@ -28,19 +28,39 @@ function palette() {
     : { ink: '#0d0906', wood: '#241710', cream: '#f3e6c9', gold: '#c9a447', muted: '#c9bda6' }
 }
 
+/** What a card says. A result card also has the photo; History and the G-off share without one. */
+export interface CardContent {
+  score: number
+  tier: Tier
+  /** Under the score, e.g. "Split the G!" */
+  title: string
+  /** Small line above the headline, e.g. "4 mm too low" or "My best so far" */
+  detail: string
+  /** Big line near the bottom. */
+  headline?: string
+}
+
+export function resultCard(result: ScoreResult): CardContent {
+  return { score: result.score, tier: result.tier, title: result.title, detail: result.detail }
+}
+
 /**
- * 1080x1350 share card with the photo as the hero: full-bleed shot, a score
- * stamp in the top corner, and a band along the bottom with the wordmark and
- * the challenge line. `crop` (snapshot pixels) narrows the shot to the glass.
+ * 1080x1920 share card, shaped for Instagram and Snapchat Stories (and fine
+ * in a chat): full-bleed photo, a score stamp near the top and the challenge
+ * near the bottom. Text stays out of the top 260 px and bottom 300 px, where
+ * the story apps draw their own bars. `crop` (snapshot pixels) narrows the
+ * shot to the glass.
  */
 export async function renderShareCard(
   snapshotUrl: string | null,
-  result: ScoreResult,
+  content: CardContent,
   when: Date,
   crop: Crop | null = null,
 ): Promise<Blob> {
   const W = 1080
-  const H = 1350
+  const H = 1920
+  const SAFE_TOP = 260
+  const SAFE_BOTTOM = H - 300
   const p = palette()
   const canvas = document.createElement('canvas')
   canvas.width = W
@@ -56,8 +76,8 @@ export async function renderShareCard(
   ctx.fillStyle = p.ink
   ctx.fillRect(0, 0, W, H)
 
-  // Photo, cover-fit to the whole card.
   if (snapshotUrl) {
+    // Photo, cover-fit to the whole card.
     const img = await loadImage(snapshotUrl)
     const sx = crop ? crop.x : 0
     const sy = crop ? crop.y : 0
@@ -67,28 +87,49 @@ export async function renderShareCard(
     const dw = sw * scale
     const dh = sh * scale
     ctx.drawImage(img, sx, sy, sw, sh, (W - dw) / 2, (H - dh) / 2, dw, dh)
+  } else {
+    // No photo: a warm glow behind a large ringed G.
+    const glow = ctx.createRadialGradient(W / 2, H * 0.48, 40, W / 2, H * 0.48, 760)
+    glow.addColorStop(0, p.wood)
+    glow.addColorStop(1, p.ink)
+    ctx.fillStyle = glow
+    ctx.fillRect(0, 0, W, H)
+    ctx.save()
+    ctx.globalAlpha = 0.16
+    ctx.strokeStyle = p.gold
+    ctx.lineWidth = 18
+    ctx.beginPath()
+    ctx.ellipse(W / 2, H * 0.5, 330, 380, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = p.gold
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `bold 560px ${display}`
+    ctx.fillText('G', W / 2, H * 0.52)
+    ctx.restore()
   }
 
   // Legibility gradients top and bottom.
-  const top = ctx.createLinearGradient(0, 0, 0, 420)
-  top.addColorStop(0, 'rgba(0,0,0,0.55)')
+  const top = ctx.createLinearGradient(0, 0, 0, 760)
+  top.addColorStop(0, 'rgba(0,0,0,0.6)')
   top.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = top
-  ctx.fillRect(0, 0, W, 420)
-  const bottom = ctx.createLinearGradient(0, H - 420, 0, H)
+  ctx.fillRect(0, 0, W, 760)
+  const bottom = ctx.createLinearGradient(0, H - 900, 0, H)
   bottom.addColorStop(0, 'rgba(0,0,0,0)')
-  bottom.addColorStop(1, 'rgba(0,0,0,0.85)')
+  bottom.addColorStop(0.45, 'rgba(0,0,0,0.7)')
+  bottom.addColorStop(1, 'rgba(0,0,0,0.9)')
   ctx.fillStyle = bottom
-  ctx.fillRect(0, H - 420, W, 420)
+  ctx.fillRect(0, H - 900, W, 900)
 
   // Thin frame.
   ctx.strokeStyle = p.gold
   ctx.lineWidth = 6
   ctx.strokeRect(22, 22, W - 44, H - 44)
 
-  // Score stamp, top-left, like a chalkboard hung on the wall.
-  const color = TIER_COLOR[result.tier]
-  const stamp = { x: 56, y: 56, w: 360, h: 300 }
+  // Score stamp, centred under the story bar, like a chalkboard hung on the wall.
+  const color = TIER_COLOR[content.tier]
+  const stamp = { x: (W - 420) / 2, y: SAFE_TOP, w: 420, h: 340 }
   ctx.save()
   ctx.shadowColor = 'rgba(0,0,0,0.6)'
   ctx.shadowBlur = 30
@@ -100,33 +141,39 @@ export async function renderShareCard(
   ctx.lineWidth = 5
   roundRect(ctx, stamp.x, stamp.y, stamp.w, stamp.h, 28)
   ctx.stroke()
-  ctx.strokeStyle = p.gold
   ctx.lineWidth = 1.5
   roundRect(ctx, stamp.x + 12, stamp.y + 12, stamp.w - 24, stamp.h - 24, 20)
   ctx.stroke()
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = p.gold
-  ctx.font = `600 24px ${display}`
-  ctx.fillText('S P L I T   T H E   G', stamp.x + stamp.w / 2, stamp.y + 62)
+  ctx.font = `600 26px ${display}`
+  ctx.fillText('S P L I T   T H E   G', W / 2, stamp.y + 66)
   ctx.fillStyle = color
-  ctx.font = `bold 170px ${display}`
-  ctx.fillText(String(result.score), stamp.x + stamp.w / 2, stamp.y + 222)
+  ctx.font = `bold 190px ${display}`
+  ctx.fillText(String(content.score), W / 2, stamp.y + 250)
   ctx.fillStyle = p.cream
-  ctx.font = `bold 30px ${display}`
-  ctx.fillText(result.title.toUpperCase(), stamp.x + stamp.w / 2, stamp.y + 272)
+  ctx.font = `bold 32px ${display}`
+  ctx.fillText(content.title.toUpperCase(), W / 2, stamp.y + 308)
 
-  // Bottom band: detail, challenge, link.
-  ctx.textAlign = 'left'
+  // Bottom block, centred: detail, challenge, and the address as a pill.
   ctx.fillStyle = p.cream
-  ctx.font = '38px system-ui, sans-serif'
-  ctx.fillText(result.detail, 64, H - 220)
+  ctx.font = '42px system-ui, sans-serif'
+  ctx.fillText(content.detail, W / 2, SAFE_BOTTOM - 290)
   ctx.fillStyle = p.gold
-  ctx.font = `bold 64px ${display}`
-  ctx.fillText('Can you beat it?', 64, H - 130)
+  ctx.font = `bold 84px ${display}`
+  ctx.fillText(content.headline ?? 'Can you beat it?', W / 2, SAFE_BOTTOM - 180)
+  const site = APP_URL.replace('https://', '').replace(/\/$/, '')
+  ctx.font = `bold 44px ${display}`
+  const pillW = ctx.measureText(site).width + 96
+  ctx.fillStyle = p.gold
+  roundRect(ctx, (W - pillW) / 2, SAFE_BOTTOM - 120, pillW, 84, 42)
+  ctx.fill()
+  ctx.fillStyle = p.ink
+  ctx.fillText(site, W / 2, SAFE_BOTTOM - 63)
   ctx.fillStyle = p.muted
-  ctx.font = '34px system-ui, sans-serif'
-  ctx.fillText(`${APP_URL.replace('https://', '').replace(/\/$/, '')}  ·  ${when.toLocaleDateString()}`, 64, H - 66)
+  ctx.font = '30px system-ui, sans-serif'
+  ctx.fillText(when.toLocaleDateString(), W / 2, SAFE_BOTTOM + 10)
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/jpeg', 0.9)
@@ -178,11 +225,16 @@ export async function shareResult(blob: Blob, text: string): Promise<ShareOutcom
     await navigator.clipboard.writeText(text)
     return 'copied'
   } catch {
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'split-the-g.jpg'
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+    saveImage(blob)
     return 'downloaded'
   }
+}
+
+/** Save the card to the device (downloads on desktop and Android, the Files app on iPhone). */
+export function saveImage(blob: Blob) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'split-the-g.jpg'
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000)
 }

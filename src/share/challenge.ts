@@ -11,21 +11,32 @@ export interface Challenge {
   from?: string
 }
 
-/** Link a friend opens to take the challenge. */
+/**
+ * Link a friend opens to take the challenge. /c/<score> is a static page with
+ * a link preview made for that score (site/plugin.ts); it forwards to
+ * #/challenge with the same query.
+ */
 export function challengeUrl(score: number, from?: string): string {
-  const p = new URLSearchParams({ s: String(score) })
+  const p = new URLSearchParams()
   if (from) p.set('f', from)
   if (getMode() === 'sparkling') p.set('m', 's')
-  return `${APP_URL}#/challenge?${p.toString()}`
+  const q = p.toString()
+  return `${APP_URL}c/${Math.round(score)}${q ? `?${q}` : ''}`
 }
 
 /** Text-message body: the result plus a link for the friend to try. */
-export function challengeText(result: ScoreResult, from?: string): string {
+export function challengeText(result: Pick<ScoreResult, 'score' | 'tier' | 'title'>, from?: string, lead?: string): string {
   const who = from ? `@${from}` : 'I'
   const verb = from ? 'scored' : 'just scored'
   const brag = result.tier === 'split' ? 'Split the G. Dead centre.' : result.title + '.'
   const emoji = MODE_COPY[getMode()].emoji
-  return `${who} ${verb} ${result.score}/100 on Split The G ${emoji} ${brag} Think you can beat it? Your turn: ${challengeUrl(result.score, from)}`
+  const opening = lead ?? `${who} ${verb} ${result.score}/100 on Split The G ${emoji} ${brag}`
+  return `${opening} Think you can beat it? Your turn: ${challengeUrl(result.score, from)}`
+}
+
+/** WhatsApp's own share link: opens the app with the message filled in and a chat picker. */
+export function whatsappHref(body: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(body)}`
 }
 
 /**

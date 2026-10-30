@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
-import { SITE_URL, ctaBox, esc, renderPage, siteFooter, siteHeader, type PageMeta } from './layout'
+import { SITE_URL, adsenseTags, ctaBox, esc, renderPage, siteFooter, siteHeader, type PageMeta } from './layout'
+import { TIER_COLOR, TIER_TITLE, tierFor } from '../src/engine/score'
 
 /**
  * The crawlable half of pintsplit.com. The game is a client-side React app, so
@@ -179,6 +180,85 @@ ${urls.map((u) => `  <url><loc>${SITE_URL}${u === '/' ? '/' : u}</loc><lastmod>$
 `
 }
 
+/*
+ * Challenge links: /c/<score> for every score 0-100. Each page carries a link
+ * preview made for that score (title and a 1200x630 image), so a link pasted
+ * into a chat or a post says "Can you beat 87?". People are sent straight on
+ * to the app's #/challenge screen with the same query; link-preview bots
+ * don't run scripts, so they read the tags.
+ */
+const SCORES = Array.from({ length: 101 }, (_, i) => i)
+
+function challengePage(score: number, adsenseClient: string | undefined): string {
+  const title = `Can you beat ${score}/100? | Split The G`
+  const desc = 'A friend took one sip and scored ' + score + '. Your turn: point your phone at your glass, take one sip and land the line on the G.'
+  const img = `${SITE_URL}/og/${score}.png`
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>${title}</title>
+    <meta name="description" content="${desc}" />
+    <link rel="canonical" href="${SITE_URL}/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Split The G" />
+    <meta property="og:title" content="Can you beat ${score}/100?" />
+    <meta property="og:description" content="${desc}" />
+    <meta property="og:url" content="${SITE_URL}/c/${score}" />
+    <meta property="og:image" content="${img}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Split The G challenge: ${score} out of 100" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Can you beat ${score}/100?" />
+    <meta name="twitter:description" content="${desc}" />
+    <meta name="twitter:image" content="${img}" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css" />
+    <script>location.replace('/#/challenge?' + new URLSearchParams(Object.assign({ s: '${score}' }, Object.fromEntries(new URLSearchParams(location.search)))))</script>
+    ${adsenseTags(adsenseClient)}
+  </head>
+  <body class="site-page">
+    <main class="site-main">
+      <article class="prose">
+        <h1>Can you beat ${score}/100?</h1>
+        <p>A friend took one sip and scored ${score} on Split The G. <a href="/#/challenge?s=${score}">Take the challenge</a>.</p>
+      </article>
+    </main>
+  </body>
+</html>
+`
+}
+
+/** The preview image for one score, as SVG for resvg (Cinzel only; no system fonts in CI). */
+function challengeSvg(score: number): string {
+  const tier = tierFor(score)
+  const color = TIER_COLOR[tier]
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0d0906"/>
+  <ellipse cx="330" cy="315" rx="230" ry="250" fill="#1c130d"/>
+  <rect x="18" y="18" width="1164" height="594" fill="none" stroke="#c9a447" stroke-width="5"/>
+  <rect x="32" y="32" width="1136" height="566" fill="none" stroke="#c9a447" stroke-opacity="0.35" stroke-width="1.5"/>
+  <ellipse cx="330" cy="315" rx="230" ry="250" fill="none" stroke="#c9a447" stroke-opacity="0.18" stroke-width="10"/>
+  <text x="330" y="370" text-anchor="middle" font-family="Cinzel" font-weight="700" font-size="${score === 100 ? 200 : 230}" fill="${color}">${score}</text>
+  <text x="330" y="450" text-anchor="middle" font-family="Cinzel" font-size="40" fill="#f3e6c9" letter-spacing="6">OUT OF 100</text>
+  <text x="640" y="150" font-family="Cinzel" font-size="30" fill="#c9a447" letter-spacing="10">SPLIT THE G</text>
+  <text x="640" y="250" font-family="Cinzel" font-weight="700" font-size="72" fill="#f3e6c9">Can you</text>
+  <text x="640" y="335" font-family="Cinzel" font-weight="700" font-size="72" fill="#f3e6c9">beat it?</text>
+  <text x="640" y="400" font-family="Cinzel" font-size="34" fill="${color}">${esc(TIER_TITLE[tier])}</text>
+  <rect x="640" y="460" width="420" height="72" rx="36" fill="#c9a447"/>
+  <text x="850" y="507" text-anchor="middle" font-family="Cinzel" font-weight="700" font-size="34" fill="#0d0906">pintsplit.com</text>
+</svg>`
+}
+
+async function challengePng(score: number): Promise<Buffer> {
+  const { Resvg } = await import('@resvg/resvg-js')
+  const font = { fontFiles: [join(DIR, 'fonts', 'Cinzel.ttf')], loadSystemFonts: false, defaultFontFamily: 'Cinzel' }
+  return new Resvg(challengeSvg(score), { font }).render().asPng()
+}
+
 const ROBOTS = `User-agent: *
 Allow: /
 
@@ -207,13 +287,31 @@ export function sitePages(adsenseClient: string | undefined): Plugin {
           res.end(path === '/robots.txt' ? ROBOTS : sitemap(buildPages(adsenseClient)))
           return
         }
+        const c = path.match(/^\/c\/(\d{1,3})$/)
+        if (c && Number(c[1]) <= 100) {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          res.end(challengePage(Number(c[1]), adsenseClient))
+          return
+        }
+        const og = (req.url ?? '').match(/^\/og\/(\d{1,3})\.png/)
+        if (og && Number(og[1]) <= 100) {
+          challengePng(Number(og[1])).then((png) => {
+            res.setHeader('Content-Type', 'image/png')
+            res.end(png)
+          }, next)
+          return
+        }
         const hit = buildPages(adsenseClient).find((p) => p.path === path)
         if (!hit) return next()
         res.setHeader('Content-Type', 'text/html; charset=utf-8')
         res.end(hit.html)
       })
     },
-    generateBundle() {
+    async generateBundle() {
+      for (const n of SCORES) {
+        this.emitFile({ type: 'asset', fileName: `c/${n}.html`, source: challengePage(n, adsenseClient) })
+        this.emitFile({ type: 'asset', fileName: `og/${n}.png`, source: await challengePng(n) })
+      }
       const pages = buildPages(adsenseClient)
       for (const p of pages) this.emitFile({ type: 'asset', fileName: p.file, source: p.html })
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemap(pages) })

@@ -80,6 +80,8 @@ export default defineConfig(({ mode }) => {
       workbox: {
         // Only the app itself falls back to index.html; /blog, /privacy and the rest are real pages.
         navigateFallbackAllowlist: [/^\/$/, /^\/index\.html$/],
+        // 101 challenge landing pages are only ever opened from a link; don't precache them.
+        globIgnores: ['c/**'],
         // keep the display font available offline once it has been seen
         runtimeCaching: [
           {

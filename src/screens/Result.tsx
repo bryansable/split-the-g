@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AdSlot } from '../ads/AdSlot'
-import { Cheers } from '../components/icons'
-import { Button, LinkButton, Notice } from '../components/ui'
+import { LinkButton } from '../components/ui'
 import { saveAttempt } from '../data/local'
 import { uploadAttempts } from '../data/supabase'
 import { useAuth } from '../data/AuthContext'
 import type { GlassType } from '../data/types'
 import { TIER_COLOR, type ScoreResult } from '../engine/score'
-import { challengeText, clearChallenge, loadChallenge, smsHref } from '../share/challenge'
-import { canShareFiles, renderShareCard, shareResult, type Crop, type ShareOutcome } from '../share/shareCard'
+import { challengeText, challengeUrl, clearChallenge, loadChallenge } from '../share/challenge'
+import { ShareBar, useShareCard } from '../share/ShareBar'
+import { resultCard, type Crop } from '../share/shareCard'
 
 export interface PendingResult {
   id: string
@@ -30,11 +30,7 @@ export function Result() {
   const { state } = useLocation()
   const pending = state as PendingResult | null
   const { session, profile } = useAuth()
-  const [shareMsg, setShareMsg] = useState<string | null>(null)
-  const [sharing, setSharing] = useState(false)
   const [framing, setFraming] = useState<Framing>('scene')
-  const [cardUrl, setCardUrl] = useState<string | null>(null)
-  const cardBlob = useRef<Blob | null>(null)
   // A challenge this attempt was answering, if the user arrived via a texted link.
   const [challenge] = useState(() => loadChallenge())
   useEffect(() => {
@@ -63,31 +59,19 @@ export function Result() {
     }
   }, [pending, navigate, session])
 
-  // Render the card that will be shared, and show it as the preview.
-  useEffect(() => {
-    if (!pending) return
-    let cancelled = false
-    const crop = framing === 'glass' && pending.glassCrop ? pending.glassCrop : null
-    renderShareCard(pending.snapshotUrl, pending.result, new Date(pending.createdAt), crop)
-      .then((blob) => {
-        if (cancelled) return
-        cardBlob.current = blob
-        setCardUrl((old) => {
-          if (old) URL.revokeObjectURL(old)
-          return URL.createObjectURL(blob)
-        })
-      })
-      .catch((e) => console.warn('card render failed', e))
-    return () => {
-      cancelled = true
-    }
-  }, [pending, framing])
+  // The card that will be shared, also shown as the preview.
+  const card = useShareCard(
+    pending?.snapshotUrl ?? null,
+    pending ? resultCard(pending.result) : null,
+    pending?.createdAt ?? '',
+    framing === 'glass' ? (pending?.glassCrop ?? null) : null,
+  )
 
   if (!pending) return null
   const { result } = pending
   const color = TIER_COLOR[result.tier]
-  const text = challengeText(result, profile?.username ?? undefined)
-  const textHref = smsHref(text)
+  const from = profile?.username ?? undefined
+  const text = challengeText(result, from)
   const verdict =
     challenge &&
     (result.score > challenge.score
@@ -95,30 +79,6 @@ export function Result() {
       : result.score === challenge.score
         ? `Dead heat with ${challenge.from ? `@${challenge.from}` : 'them'} at ${challenge.score}.`
         : `${challenge.from ? `@${challenge.from}` : 'They'} still lead${challenge.from ? 's' : ''} with ${challenge.score}. Another pint?`)
-
-  async function share() {
-    if (!cardBlob.current) return
-    setSharing(true)
-    setShareMsg(null)
-    try {
-      const outcome: ShareOutcome = await shareResult(cardBlob.current, text)
-      setShareMsg(
-        outcome === 'shared'
-          ? 'Shared.'
-          : outcome === 'text-only'
-            ? 'This browser cannot share photos, so the score and link were shared as text.'
-            : outcome === 'copied'
-              ? 'Sharing is not available here. The score and link were copied; the card was saved to your downloads.'
-              : outcome === 'downloaded'
-                ? 'Card saved to your downloads.'
-                : null,
-      )
-    } catch (e) {
-      setShareMsg((e as Error).message)
-    } finally {
-      setSharing(false)
-    }
-  }
 
   return (
     <div className="px-5 pt-5 pb-8 space-y-4">
@@ -133,11 +93,11 @@ export function Result() {
       {verdict && <p className="text-center text-sm text-gold">{verdict}</p>}
 
       {/* the card exactly as it will be shared */}
-      <div className="mx-auto w-full max-w-xs">
-        {cardUrl ? (
-          <img src={cardUrl} alt="Your attempt" className="w-full rounded-lg border-2 border-gold/50" />
+      <div className="mx-auto w-full max-w-[15rem]">
+        {card ? (
+          <img src={card.url} alt="Your share card" className="w-full rounded-lg border-2 border-gold/50" />
         ) : (
-          <div className="aspect-[4/5] w-full rounded-lg border-2 border-gold/30 bg-stout" />
+          <div className="aspect-[9/16] w-full rounded-lg border-2 border-gold/30 bg-stout" />
         )}
       </div>
 
@@ -155,25 +115,12 @@ export function Result() {
         </div>
       )}
 
-      <Button size="lg" className="w-full" onClick={share} disabled={sharing || !cardUrl}>
-        <Cheers size={22} />
-        {sharing ? 'Opening…' : 'Share your pint'}
-      </Button>
-      <div className="flex items-center justify-between text-sm">
-        {canShareFiles() ? (
-          <a href={textHref} className="text-gold underline-offset-4 hover:underline">
-            Text without the photo
-          </a>
-        ) : (
-          <a href={textHref} className="text-gold underline-offset-4 hover:underline">
-            Text a friend
-          </a>
-        )}
+      <ShareBar card={card?.blob ?? null} text={text} link={challengeUrl(result.score, from)} />
+      <div className="text-center">
         <LinkButton to="/score" variant="ghost" size="sm">
           Try again
         </LinkButton>
       </div>
-      {shareMsg && <Notice tone="ok">{shareMsg}</Notice>}
       <AdSlot slot="result" />
       <p className="text-center text-xs text-cream/40">
         Saved to your history{session ? ' and synced' : ''}. <LinkButton to="/history" variant="ghost" size="sm">View history</LinkButton>

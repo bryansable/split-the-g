@@ -4,7 +4,9 @@ import { useAuth } from '../data/AuthContext'
 import { dayKey, useAttempts } from '../data/local'
 import { fetchLeaderboard, listFriendships } from '../data/supabase'
 import type { LeaderboardRow } from '../data/types'
-import { TIER_COLOR, tierFor } from '../engine/score'
+import { TIER_COLOR, TIER_TITLE, tierFor } from '../engine/score'
+import { challengeText, challengeUrl } from '../share/challenge'
+import { ShareBar, useShareCard } from '../share/ShareBar'
 
 function dayRange(offsetDays = 0) {
   const start = new Date()
@@ -66,6 +68,11 @@ export function Contest() {
   const todayKey = dayKey(new Date().toISOString())
   const mine = attempts.filter((a) => dayKey(a.createdAt) === todayKey)
   const myBest = mine.length ? Math.max(...mine.map((a) => a.score)) : null
+  const rank = today ? today.findIndex((r) => r.isMe) + 1 : 0
+  const from = profile?.username ?? undefined
+  const bragLine = rank === 1 && today && today.length > 1 ? "Top of today's G-off" : rank ? `#${rank} in today's G-off` : "Today's best"
+  const shareable = myBest === null ? null : { score: myBest, tier: tierFor(myBest), title: TIER_TITLE[tierFor(myBest)] }
+  const card = useShareCard(null, shareable && { ...shareable, detail: bragLine }, mine[0]?.createdAt ?? '')
 
   return (
     <Page>
@@ -83,6 +90,17 @@ export function Contest() {
           Score
         </LinkButton>
       </div>
+
+      {shareable && (
+        <div className="mt-5">
+          <ShareBar
+            card={card?.blob ?? null}
+            text={challengeText(shareable, from, `${bragLine} on Split The G: ${shareable.score}/100.`)}
+            link={challengeUrl(shareable.score, from)}
+            label={rank === 1 && today && today.length > 1 ? 'Share your win' : 'Share your score'}
+          />
+        </div>
+      )}
 
       <Hr className="mt-6" />
 

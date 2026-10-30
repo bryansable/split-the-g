@@ -1,11 +1,21 @@
 import { ScoreChart } from '../components/ScoreChart'
 import { Figure, Hr, LinkButton, Page, PageTitle, SectionLabel } from '../components/ui'
 import { computeStats, useAttempts } from '../data/local'
+import { useAuth } from '../data/AuthContext'
+import { MODE_COPY, useMode } from '../data/mode'
 import { TIER_COLOR, TIER_TITLE, tierFor } from '../engine/score'
+import { challengeText, challengeUrl } from '../share/challenge'
+import { ShareBar, useShareCard } from '../share/ShareBar'
 
 export function History() {
   const attempts = useAttempts()
   const stats = computeStats(attempts)
+  const { profile } = useAuth()
+  const mode = useMode()
+  const from = profile?.username ?? undefined
+  const best = stats.count ? { score: stats.best, tier: tierFor(stats.best), title: TIER_TITLE[tierFor(stats.best)] } : null
+  const bestAt = best ? (attempts.find((a) => a.score === best.score)?.createdAt ?? '') : ''
+  const card = useShareCard(null, best && { ...best, detail: 'My best so far' }, bestAt)
 
   return (
     <Page>
@@ -17,6 +27,17 @@ export function History() {
         <Figure size="md" label="Avg (10)" value={stats.average} />
         <Figure size="md" label="Streak" value={`${stats.streakDays}d`} />
       </div>
+
+      {best && (
+        <div className="mt-5">
+          <ShareBar
+            card={card?.blob ?? null}
+            text={challengeText(best, from, `My best on Split The G is ${best.score}/100 ${MODE_COPY[mode].emoji}`)}
+            link={challengeUrl(best.score, from)}
+            label="Share your best"
+          />
+        </div>
+      )}
 
       <Hr className="mt-6" />
       <div className="py-4">
