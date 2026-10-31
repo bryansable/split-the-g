@@ -17,6 +17,17 @@ function frame(width: number, height: number, lineY: number, top: number, bottom
   return { data, width, height }
 }
 
+/** Paint rows [y0, y1) grey `v`, optionally only in columns where `cols(x)` is true. */
+function paintRows(img: PixelSource, y0: number, y1: number, v: number, cols: (x: number) => boolean = () => true) {
+  for (let y = y0; y < y1; y++) {
+    for (let x = 0; x < img.width; x++) {
+      if (!cols(x)) continue
+      const i = (y * img.width + x) * 4
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+    }
+  }
+}
+
 describe('rowLuminance', () => {
   it('averages the ROI columns per row', () => {
     const img = frame(10, 4, 2, 200, 50)
@@ -77,6 +88,42 @@ describe('detectLiquidLine', () => {
       }
     }
     expect(detectLiquidLine(img, { x0: 10, x1: 40, y0: 0, y1: 60 })).toBeNull()
+  })
+
+  it('ignores a ring of foam lacing above the head (stout continues below the real line)', () => {
+    // dark pub background, a bright lacing ring left on the glass by the sip,
+    // then the head, then stout. The ring's lower edge is the strongest step.
+    const img = frame(40, 120, 0, 20, 20)
+    paintRows(img, 30, 34, 230)
+    paintRows(img, 60, 80, 220)
+    paintRows(img, 80, 120, 50)
+    const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 5, y1: 115 })
+    expect(d?.y).toBe(80)
+  })
+
+  it('ignores printed lettering on the glass over the stout', () => {
+    // dim head over stout, with the wordmark (white strokes on half the
+    // columns) printed below the line. Its edges are stronger than the line.
+    const img = frame(40, 120, 40, 120, 40)
+    paintRows(img, 60, 70, 250, (x) => x % 4 < 2)
+    const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 5, y1: 115 })
+    expect(d?.y).toBe(40)
+  })
+
+  it('still finds a dim line through heavy sensor noise, with lacing above', () => {
+    const img = frame(40, 120, 0, 25, 25)
+    paintRows(img, 20, 23, 200)
+    paintRows(img, 45, 70, 150)
+    paintRows(img, 70, 120, 45)
+    let seed = 7
+    for (let i = 0; i < img.data.length; i += 4) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      const v = Math.max(0, Math.min(255, img.data[i] + ((seed % 61) - 30)))
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+    }
+    const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 5, y1: 115 })
+    expect(d).not.toBeNull()
+    expect(Math.abs(d!.y - 70)).toBeLessThanOrEqual(1)
   })
 
   it('respects the ROI rows', () => {

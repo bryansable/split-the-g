@@ -90,18 +90,25 @@ export function scoreRows(lum: Float32Array, win = 3, flank = 4): Float32Array {
   const n = lum.length
   const out = new Float32Array(n)
   const margin = Math.max(win, flank + 2)
-  for (let i = margin; i < n - margin; i++) {
-    const above = mean(lum, i - win, i)
-    const below = mean(lum, i, i + win)
-    const stepDown = above - below
-    const stepUp = below - above
-    const aboveFlank = mean(lum, i - flank - 2, i - 2)
-    const belowFlank = mean(lum, i + 2, i + flank + 2)
-    const centre = mean(lum, i - 1, i + 2)
-    const valley = Math.min(aboveFlank, belowFlank) - centre
-    out[i] = Math.max(stepDown, 0.8 * stepUp, 1.3 * valley, 0)
-  }
+  for (let i = margin; i < n - margin; i++) out[i] = rowSignature(lum, i, win, flank).score
   return out
+}
+
+type EdgeKind = 'down' | 'up' | 'valley'
+
+/** The three liquid-surface signatures at row i of a profile, weighted, and which one wins. */
+function rowSignature(lum: Float32Array, i: number, win: number, flank: number) {
+  const above = mean(lum, i - win, i)
+  const below = mean(lum, i, i + win)
+  const aboveFlank = mean(lum, i - flank - 2, i - 2)
+  const belowFlank = mean(lum, i + 2, i + flank + 2)
+  const centre = mean(lum, i - 1, i + 2)
+  const down = above - below
+  const up = 0.8 * (below - above)
+  const valley = 1.3 * (Math.min(aboveFlank, belowFlank) - centre)
+  const score = Math.max(down, up, valley, 0)
+  const kind: EdgeKind = score === down ? 'down' : score === up ? 'up' : 'valley'
+  return { score, kind, above, below }
 }
 
 export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions = {}): Detection | null {
@@ -123,25 +130,37 @@ export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions
   const n = perStrip[0].length
   if (n === 0) return null
 
-  let bestI = -1
-  let best = 0
+  const scores = new Float32Array(n)
   const tmp = new Float32Array(strips)
   for (let i = 0; i < n; i++) {
     for (let s = 0; s < strips; s++) tmp[s] = perStrip[s][i]
     const sorted = Array.from(tmp).sort((a, b) => a - b)
-    const score = sorted[Math.floor(strips / 2)]
-    if (score > best) {
-      best = score
+    scores[i] = sorted[Math.floor(strips / 2)]
+  }
+  const candidates = peakRows(scores, minScore, 8)
+  if (candidates.length === 0) return null
+
+  // The strongest edge is not always the surface: a ring of foam lacing left
+  // above the head, the top of the head itself, or the printed wordmark can
+  // all out-score a dim foam-to-stout line. Rerank the strongest candidates by
+  // how plausible each is as the surface and keep the best.
+  const block = grayBlock(img, { x0, x1, y0: roi.y0, y1: roi.y1 })
+  const lum = block.rows
+  let bestI = candidates[0]
+  let bestRank = -1
+  for (const i of candidates) {
+    const rank = scores[i] * plausibility(block, i, win, flank)
+    if (rank > bestRank) {
+      bestRank = rank
       bestI = i
     }
   }
-  if (bestI < 0 || best < minScore) return null
+  const best = scores[bestI]
 
   // The surface of the liquid is an ellipse seen from slightly above: a dark
   // band whose top is the far arc and whose bottom is the near arc at the
   // front of the glass, which is what the user reads the level against. If
   // the candidate sits on a bounded dark band, snap to the bottom of it.
-  const lum = rowLuminance(img, { x0, x1, y0: roi.y0, y1: roi.y1 })
   const nearI = nearEdge(lum, bestI, flank, Math.max(3, Math.round(n * (opts.maxBandFraction ?? 0.1))))
 
   // Sub-row position of the edge between rows nearI-1 and nearI: weight by
@@ -153,6 +172,92 @@ export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions
     step: best,
     confidence: Math.min(1, best / 80),
   }
+}
+
+/** Local maxima of a row-score profile at or above `min`, strongest first, at least 4 rows apart. */
+function peakRows(scores: Float32Array, min: number, limit: number): number[] {
+  const peaks: number[] = []
+  for (let i = 0; i < scores.length; i++) {
+    const v = scores[i]
+    if (v < min || (i > 0 && v < scores[i - 1]) || (i + 1 < scores.length && v < scores[i + 1])) continue
+    peaks.push(i)
+  }
+  peaks.sort((a, b) => scores[b] - scores[a])
+  const picked: number[] = []
+  for (const i of peaks) {
+    if (picked.every((p) => Math.abs(p - i) > 3)) picked.push(i)
+    if (picked.length >= limit) break
+  }
+  return picked
+}
+
+/** Luma of every pixel in the ROI (row-major) plus the per-row means. */
+interface GrayBlock {
+  px: Float32Array
+  rows: Float32Array
+  w: number
+  n: number
+}
+
+function grayBlock(img: PixelSource, roi: Roi): GrayBlock {
+  const x0 = Math.max(0, Math.floor(roi.x0))
+  const x1 = Math.min(img.width, Math.ceil(roi.x1))
+  const y0 = Math.max(0, Math.floor(roi.y0))
+  const y1 = Math.min(img.height, Math.ceil(roi.y1))
+  const w = Math.max(0, x1 - x0)
+  const n = Math.max(0, y1 - y0)
+  const px = new Float32Array(w * n)
+  const rows = new Float32Array(n)
+  const d = img.data
+  for (let r = 0; r < n; r++) {
+    let sum = 0
+    for (let c = 0; c < w; c++) {
+      const i = ((y0 + r) * img.width + x0 + c) * 4
+      const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+      px[r * w + c] = v
+      sum += v
+    }
+    rows[r] = w > 0 ? sum / w : 0
+  }
+  return { px, rows, w, n }
+}
+
+/**
+ * 0-1: how much a candidate row looks like the liquid surface rather than
+ * something else with a horizontal edge. Two checks:
+ *   - coverage: a surface crosses the whole column. Count the pixel columns
+ *     that show the same signature at at least 40% of the row's strength;
+ *     printed lettering and partial reflections only cover some of them.
+ *   - continuity: for a step, the side below the line is the liquid and stays
+ *     that way down to the end of the search. Below a lacing ring or the top
+ *     of the head, the profile swings back past the midpoint of the step.
+ */
+function plausibility(b: GrayBlock, i: number, win: number, flank: number): number {
+  const sig = rowSignature(b.rows, i, win, flank)
+  if (sig.score <= 0) return 0
+
+  const col = new Float32Array(b.n)
+  let covered = 0
+  for (let c = 0; c < b.w; c++) {
+    for (let r = 0; r < b.n; r++) col[r] = b.px[r * b.w + c]
+    const s = rowSignature(col, i, win, flank)
+    const v = sig.kind === 'down' ? s.above - s.below : sig.kind === 'up' ? 0.8 * (s.below - s.above) : s.score
+    if (v >= 0.4 * sig.score) covered++
+  }
+  const coverage = covered / b.w
+  let p = coverage * coverage
+
+  if (sig.kind !== 'valley') {
+    const mid = (sig.above + sig.below) / 2
+    const from = i + win
+    let swung = 0
+    for (let r = from; r < b.n; r++) {
+      if (sig.kind === 'down' ? b.rows[r] > mid : b.rows[r] < mid) swung++
+    }
+    const frac = b.n > from ? swung / (b.n - from) : 0
+    p *= Math.max(0, 1 - 2 * frac)
+  }
+  return p
 }
 
 /**
