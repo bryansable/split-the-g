@@ -73,6 +73,13 @@ describe('detectLiquidLine', () => {
     expect(d!.y).toBe(32)
   })
 
+  it('reports the upper edge of the meniscus when the surface is above the camera', () => {
+    const img = frame(40, 60, 0, 150, 150)
+    paintRows(img, 30, 32, 90)
+    const d = detectLiquidLine(img, { x0: 10, x1: 30, y0: 0, y1: 60 }, { horizonY: 45 })
+    expect(d!.y).toBe(30)
+  })
+
   it('returns null on a flat image', () => {
     const flat = frame(40, 60, 25, 120, 120)
     expect(detectLiquidLine(flat, { x0: 10, x1: 30, y0: 0, y1: 60 })).toBeNull()

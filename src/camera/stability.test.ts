@@ -1,54 +1,64 @@
 import { describe, expect, it } from 'vitest'
 import { Stabilizer } from './stability'
 
-const f = (rim: number, base: number) => ({ rimY: rim, baseY: base, left: 100, right: 300 })
+const r = (rim: number, base: number, fraction: number | null = null) => ({ rimY: rim, baseY: base, left: 100, right: 300, fraction })
 
 describe('Stabilizer', () => {
-  it('needs three agreeing frames before it reports a glass', () => {
+  it('reports a glass from the second sample', () => {
     const s = new Stabilizer()
-    s.pushFrame(f(100, 500))
-    s.pushFrame(f(101, 502))
+    s.push(r(100, 500))
     expect(s.frame()).toBeNull()
-    s.pushFrame(f(99, 499))
-    expect(s.frame()?.rimY).toBe(100)
-  })
-
-  it('withholds the frame while samples disagree', () => {
-    const s = new Stabilizer()
-    s.pushFrame(f(100, 500))
-    s.pushFrame(f(140, 500))
-    s.pushFrame(f(100, 500))
-    expect(s.frame()).toBeNull()
+    s.push(r(102, 502))
+    expect(s.frame()?.rimY).toBe(101)
   })
 
   it('drops the glass after consecutive misses', () => {
     const s = new Stabilizer()
-    for (let i = 0; i < 3; i++) s.pushFrame(f(100, 500))
-    s.pushFrame(null)
-    s.pushFrame(null)
-    s.pushFrame(null)
+    for (let i = 0; i < 3; i++) s.push(r(100, 500))
+    s.push(null)
+    s.push(null)
+    s.push(null)
     expect(s.frame()).not.toBeNull()
-    s.pushFrame(null)
+    s.push(null)
     expect(s.frame()).toBeNull()
     expect(s.hasGlass).toBe(false)
   })
 
-  it('locks the line once four samples agree within 1% of glass height', () => {
+  it('locks once four readings agree within 1% of the glass', () => {
     const s = new Stabilizer()
-    s.pushLine(220)
-    s.pushLine(221)
-    expect(s.line(400)?.locked).toBe(false)
-    s.pushLine(219)
-    s.pushLine(220)
-    expect(s.line(400)?.locked).toBe(true)
-    expect(s.line(400)?.y).toBeCloseTo(220)
-    s.pushLine(240)
-    expect(s.line(400)?.locked).toBe(false)
+    s.push(r(100, 500, 0.3))
+    s.push(r(100, 500, 0.302))
+    expect(s.reading()?.locked).toBe(false)
+    s.push(r(100, 500, 0.298))
+    s.push(r(100, 500, 0.301))
+    expect(s.reading()?.locked).toBe(true)
+    expect(s.reading()?.fraction).toBeCloseTo(0.3005, 4)
+    s.push(r(100, 500, 0.35))
+    expect(s.reading()?.locked).toBe(false)
+  })
+
+  it('locks while the hand drifts, because readings are relative to each frame', () => {
+    const s = new Stabilizer()
+    // the glass slides 5 px down the screen per sample; the reading holds
+    for (let i = 0; i < 4; i++) s.push(r(100 + 5 * i, 500 + 5 * i, 0.3))
+    expect(s.reading()?.locked).toBe(true)
+  })
+
+  it('does not lock while the phone is swinging', () => {
+    const s = new Stabilizer()
+    for (let i = 0; i < 4; i++) s.push(r(100 + 30 * i, 500 + 30 * i, 0.3))
+    expect(s.reading()?.locked).toBe(false)
   })
 
   it('a single outlier does not move the median', () => {
     const s = new Stabilizer()
-    for (const y of [220, 221, 300, 219, 220]) s.pushLine(y)
-    expect(s.line(400)?.y).toBe(220)
+    for (const f of [0.3, 0.301, 0.5, 0.299, 0.3]) s.push(r(100, 500, f))
+    expect(s.reading()?.fraction).toBe(0.3)
+  })
+
+  it('needs a line in each of the last four samples to lock', () => {
+    const s = new Stabilizer()
+    for (const f of [0.3, 0.3, null, 0.3]) s.push(r(100, 500, f))
+    expect(s.reading()?.locked).toBe(false)
   })
 })

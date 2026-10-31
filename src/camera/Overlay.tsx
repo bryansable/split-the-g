@@ -9,6 +9,8 @@ export interface OverlayProps {
   height: number
   /** rim/base in container pixels */
   frame: GlassFrame
+  /** Row of the G's centre in container px, when tilt correction moves it off the plain fraction. */
+  targetY?: number
   /** liquid line in container pixels, or null when not found */
   lineY: number | null
   result: ScoreResult | null
@@ -25,14 +27,14 @@ const CREAM = '#f5e6c8'
  * SVG overlay drawn on top of the camera: glass guide with draggable rim/base,
  * a ghost "G" at the target height, and the detected liquid line.
  */
-export function Overlay({ width, height, frame, lineY, result, showGhost, autoDetect, walls, onDrag }: OverlayProps) {
+export function Overlay({ width, height, frame, targetY: targetYProp, lineY, result, showGhost, autoDetect, walls, onDrag }: OverlayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const dragging = useRef<Handle | null>(null)
 
   const gh = glassHeight(frame)
   const cx = walls ? (walls.left + walls.right) / 2 : width / 2
   const glassW = walls ? walls.right - walls.left : Math.min(width * 0.62, gh * 0.72)
-  const targetY = fractionToY(TARGET_FRACTION, frame)
+  const targetY = targetYProp ?? fractionToY(TARGET_FRACTION, frame)
   const gSize = G_LETTER_HEIGHT * gh
   const bandPx = G_BAND * gh
 

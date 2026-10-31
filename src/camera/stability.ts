@@ -1,10 +1,16 @@
 import type { GlassFrame } from '../engine/glass'
 
 /**
- * Temporal stability for the live loop. Single frames are noisy; the user
- * sees a reading only once the glass has been found on consecutive samples
- * with a consistent frame, and the score only once the liquid line has
- * settled. All values are in container pixels.
+ * Temporal stability for the live loop. Single frames are noisy, so the
+ * reading shown is a median over recent samples and it locks once the last
+ * few agree.
+ *
+ * Each sample's reading is taken against that same sample's rim and base, as
+ * a fraction of the glass. A hand-held phone moves the whole glass around the
+ * screen from frame to frame, but the line moves with it, so the fraction
+ * holds steady even while the pixel positions do not. That is what lets the
+ * reading lock in well under a second instead of waiting for a perfectly
+ * still hand. Frame positions are in container pixels.
  */
 
 export interface FrameSample extends GlassFrame {
@@ -12,19 +18,25 @@ export interface FrameSample extends GlassFrame {
   right: number
 }
 
+export interface Reading extends FrameSample {
+  /** Line as a fraction of this sample's glass height, or null when no line was found. */
+  fraction: number | null
+}
+
 export interface StableFrame extends FrameSample {
-  /** max-min spread of rim and base over the window, as a fraction of glass height */
+  /** max-min spread of rim and base over recent samples, as a fraction of glass height */
   spread: number
 }
 
-const FRAME_WINDOW = 5
-const LINE_WINDOW = 5
+const WINDOW = 6
 /** consecutive misses before the glass is considered gone */
 const MISS_LIMIT = 4
-/** rim/base agreement needed before the frame counts as stable */
-const FRAME_SPREAD = 0.02
-/** line agreement needed before the reading is locked */
-const LINE_SPREAD = 0.01
+/** recent samples whose readings must agree before the reading locks */
+const LOCK_COUNT = 4
+/** reading agreement needed to lock: 1% of glass height (6 points) */
+const LOCK_SPREAD = 0.01
+/** frame movement beyond this (fraction of glass height) means the phone is swinging: blur, no lock */
+const MOTION_SPREAD = 0.08
 
 function median(values: number[]): number {
   const s = values.slice().sort((a, b) => a - b)
@@ -32,75 +44,60 @@ function median(values: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
 }
 
+function range(values: number[]): number {
+  return Math.max(...values) - Math.min(...values)
+}
+
 export class Stabilizer {
-  private frames: FrameSample[] = []
-  private lines: number[] = []
-  private frameMisses = 0
-  private lineMisses = 0
+  private samples: Reading[] = []
+  private misses = 0
 
   reset() {
-    this.frames = []
-    this.lines = []
-    this.frameMisses = 0
-    this.lineMisses = 0
+    this.samples = []
+    this.misses = 0
   }
 
-  /** Feed one frame detection (or null when none was found). */
-  pushFrame(f: FrameSample | null) {
-    if (f) {
-      this.frames.push(f)
-      if (this.frames.length > FRAME_WINDOW) this.frames.shift()
-      this.frameMisses = 0
-    } else if (++this.frameMisses >= MISS_LIMIT) {
-      this.frames = []
-      this.lines = []
-      this.lineMisses = 0
+  /** Feed one sample (or null when no glass was found). */
+  push(r: Reading | null) {
+    if (r) {
+      this.samples.push(r)
+      if (this.samples.length > WINDOW) this.samples.shift()
+      this.misses = 0
+    } else if (++this.misses >= MISS_LIMIT) {
+      this.samples = []
     }
   }
 
-  /** Median frame over the window, with its spread; null until 3 agreeing samples exist. */
+  /** Median frame over the window; null until two samples exist. */
   frame(): StableFrame | null {
-    if (this.frames.length < 3) return null
-    const recent = this.frames.slice(-3)
-    const rim = median(this.frames.map((f) => f.rimY))
-    const base = median(this.frames.map((f) => f.baseY))
+    if (this.samples.length < 2) return null
+    const rim = median(this.samples.map((f) => f.rimY))
+    const base = median(this.samples.map((f) => f.baseY))
     const h = base - rim
     if (h <= 0) return null
-    const spread =
-      Math.max(
-        Math.max(...recent.map((f) => f.rimY)) - Math.min(...recent.map((f) => f.rimY)),
-        Math.max(...recent.map((f) => f.baseY)) - Math.min(...recent.map((f) => f.baseY)),
-      ) / h
-    if (spread > FRAME_SPREAD) return null
+    const recent = this.samples.slice(-3)
+    const spread = Math.max(range(recent.map((f) => f.rimY)), range(recent.map((f) => f.baseY))) / h
     return {
       rimY: rim,
       baseY: base,
-      left: median(this.frames.map((f) => f.left)),
-      right: median(this.frames.map((f) => f.right)),
+      left: median(this.samples.map((f) => f.left)),
+      right: median(this.samples.map((f) => f.right)),
       spread,
     }
   }
 
-  /** Feed one liquid-line detection (or null). */
-  pushLine(y: number | null) {
-    if (y !== null) {
-      this.lines.push(y)
-      if (this.lines.length > LINE_WINDOW) this.lines.shift()
-      this.lineMisses = 0
-    } else if (++this.lineMisses >= MISS_LIMIT) {
-      this.lines = []
-    }
-  }
-
-  /** Median line and whether it has settled, given the glass height in px. */
-  line(glassHeight: number): { y: number; locked: boolean } | null {
-    if (this.lines.length < 2) return null
-    const recent = this.lines.slice(-4)
-    const spread = (Math.max(...recent) - Math.min(...recent)) / Math.max(1, glassHeight)
-    return { y: median(this.lines), locked: recent.length >= 4 && spread <= LINE_SPREAD }
+  /** Median reading and whether it has locked. */
+  reading(): { fraction: number; locked: boolean } | null {
+    const fractions = this.samples.map((s) => s.fraction).filter((f): f is number => f !== null)
+    if (fractions.length < 2) return null
+    const recent = this.samples.slice(-LOCK_COUNT)
+    const recentFractions = recent.map((s) => s.fraction).filter((f): f is number => f !== null)
+    const steady = (this.frame()?.spread ?? Infinity) <= MOTION_SPREAD
+    const locked = steady && recentFractions.length === LOCK_COUNT && range(recentFractions) <= LOCK_SPREAD
+    return { fraction: median(locked ? recentFractions : fractions), locked }
   }
 
   get hasGlass() {
-    return this.frames.length > 0
+    return this.samples.length > 0
   }
 }

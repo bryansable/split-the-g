@@ -50,6 +50,12 @@ export interface DetectOptions {
   strips?: number
   /** Longest dark band (fraction of ROI height) still treated as a meniscus. */
   maxBandFraction?: number
+  /**
+   * Image row level with the camera lens, when the phone's tilt is known. A
+   * surface above it is seen from below, so the front of a meniscus band is
+   * its upper edge instead of its lower one.
+   */
+  horizonY?: number
 }
 
 export function rowLuminance(img: PixelSource, roi: Roi): Float32Array {
@@ -160,8 +166,11 @@ export function detectLiquidLine(img: PixelSource, roi: Roi, opts: DetectOptions
   // The surface of the liquid is an ellipse seen from slightly above: a dark
   // band whose top is the far arc and whose bottom is the near arc at the
   // front of the glass, which is what the user reads the level against. If
-  // the candidate sits on a bounded dark band, snap to the bottom of it.
-  const nearI = nearEdge(lum, bestI, flank, Math.max(3, Math.round(n * (opts.maxBandFraction ?? 0.1))))
+  // the candidate sits on a bounded dark band, snap to the bottom of it, or to
+  // the top of it when the surface is above the camera and seen from below.
+  const maxBand = Math.max(3, Math.round(n * (opts.maxBandFraction ?? 0.1)))
+  const seenFromBelow = opts.horizonY !== undefined && Math.floor(roi.y0) + bestI < opts.horizonY
+  const nearI = seenFromBelow ? upperEdge(lum, bestI, flank, maxBand) : nearEdge(lum, bestI, flank, maxBand)
 
   // Sub-row position of the edge between rows nearI-1 and nearI: weight by
   // how sharply luminance changes across the neighbouring row pairs.
@@ -296,6 +305,25 @@ export function nearEdge(lum: Float32Array, i: number, flank: number, maxBand: n
   while (j + 1 < n && j - i < maxBand && lum[j + 1] < limit) j++
   if (j - i >= maxBand) return i
   return j + 1
+}
+
+/**
+ * Mirror of nearEdge: walk up while rows stay dark relative to the brightness
+ * below the surface. Returns the top row of the band if it starts within
+ * `maxBand` rows, otherwise `i`.
+ */
+export function upperEdge(lum: Float32Array, i: number, flank: number, maxBand: number): number {
+  const n = lum.length
+  const b0 = Math.min(n - 1, i + 2)
+  const b1 = Math.min(n, Math.max(b0 + 1, i + flank + 2))
+  const belowRef = mean(lum, b0, b1)
+  const depth = belowRef - lum[i]
+  if (depth <= 0) return i
+  const limit = belowRef - 0.4 * depth
+  let j = i
+  while (j - 1 >= 0 && i - j < maxBand && lum[j - 1] < limit) j--
+  if (i - j >= maxBand) return i
+  return j
 }
 
 /**

@@ -2,6 +2,7 @@ import { detectLiquidLine, type Detection } from '../engine/detect'
 import { detectGlass } from '../engine/frame'
 import { containerToMedia, coverTransform, mediaToContainer, type CoverTransform } from '../engine/mapping'
 import type { GlassFrame } from '../engine/glass'
+import { focalLength, horizonY, isAboveCamera, type View } from '../engine/perspective'
 import { ROI_HALF_WIDTH, SAMPLE_WIDTH, glassRoi } from '../engine/roi'
 
 export type MediaSource =
@@ -57,11 +58,27 @@ export interface GlassFix {
   confidence: number
 }
 
-/** Find the glass in the sample and express it in container pixels. */
-export function findGlass(s: Sample): GlassFix | null {
+/** The camera's view in container pixels, for a camera pitched by `pitch` radians. */
+export function viewFor(s: Sample, pitch: number): View {
+  const mw = s.img.width / s.scale
+  const mh = s.img.height / s.scale
+  return {
+    pitch,
+    f: focalLength(mw, mh) * s.t.scale,
+    cy: mediaToContainer(s.t, 0, mh / 2).y,
+  }
+}
+
+/**
+ * Find the glass in the sample and express it in container pixels. With a
+ * known view, a rim above the camera is read at its upper arc, which is then
+ * the front of the glass.
+ */
+export function findGlass(s: Sample, view: View | null = null): GlassFix | null {
   const g = detectGlass(s.img)
   if (!g) return null
-  const rim = sampleToContainer(s, 0, g.rimY).y
+  const upper = sampleToContainer(s, 0, g.rimTopY).y
+  const rim = view && isAboveCamera(upper, view) ? upper : sampleToContainer(s, 0, g.rimY).y
   const base = sampleToContainer(s, 0, g.baseY).y
   const left = sampleToContainer(s, g.leftX, 0).x
   const right = sampleToContainer(s, g.rightX, 0).x
@@ -73,14 +90,19 @@ export function findGlass(s: Sample): GlassFix | null {
  * Run liquid-line detection inside the glass column between rim and base.
  * Returns the line in container pixels.
  */
-export function findLine(s: Sample, frame: GlassFrame, centreX = s.containerW / 2): { y: number; detection: Detection } | null {
+export function findLine(
+  s: Sample,
+  frame: GlassFrame,
+  centreX = s.containerW / 2,
+  view: View | null = null,
+): { y: number; detection: Detection } | null {
   const rim = containerToSample(s, centreX, frame.rimY)
   const base = containerToSample(s, centreX, frame.baseY)
   const colHalf = containerToSample(s, centreX + s.containerW * ROI_HALF_WIDTH, 0).x - rim.x
   const roi = glassRoi(s.img.width, rim.y, base.y, rim.x)
   roi.x0 = rim.x - colHalf
   roi.x1 = rim.x + colHalf
-  const detection = detectLiquidLine(s.img, roi)
+  const detection = detectLiquidLine(s.img, roi, view ? { horizonY: containerToSample(s, 0, horizonY(view)).y } : {})
   if (!detection) return null
   return { y: sampleToContainer(s, 0, detection.y).y, detection }
 }

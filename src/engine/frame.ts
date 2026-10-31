@@ -26,7 +26,10 @@ import type { PixelSource } from './detect'
 export interface GlassDetection {
   /** Front (near) rim row, image px. */
   rimY: number
-  /** Topmost rim row (far arc), image px. */
+  /**
+   * Topmost rim row, image px. Seen from above this is the far arc; seen from
+   * below the rim it is the near (front) arc, and the one to read against.
+   */
   rimTopY: number
   /** Bottom of the glass, image px. */
   baseY: number
@@ -300,6 +303,16 @@ export function detectGlass(img: PixelSource, opts: FrameOptions = {}): GlassDet
       break
     }
   }
+  // Upper arc, by the same rule mirrored: the highest row of the rim band
+  // that still carries an edge.
+  let rimUpper = rimTop
+  const bandStart = Math.max(rimLo, rimTop - Math.max(2, Math.round(H0 * 0.08)))
+  for (let y = bandStart; y <= rimTop; y++) {
+    if (rowEdge(y) >= rimPeak * 0.3) {
+      rimUpper = y
+      break
+    }
+  }
 
   // Base: where the foot meets the table. The run may overshoot into a
   // reflection on a glossy surface, so look for the lowest row in the bottom
@@ -348,5 +361,5 @@ export function detectGlass(img: PixelSource, opts: FrameOptions = {}): GlassDet
   const both = Math.min(1, (l.fill + r.fill) / 2 / 0.7)
   const confidence = Math.max(0, Math.min(1, 0.45 * both + 0.3 * strength + 0.25 * Math.min(1, H0 / (h * 0.5))))
 
-  return { rimY, rimTopY: rimTop, baseY, leftX: l.x, rightX: r.x, confidence }
+  return { rimY, rimTopY: rimUpper, baseY, leftX: l.x, rightX: r.x, confidence }
 }
